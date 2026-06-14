@@ -8,6 +8,8 @@ import {
   clearSurfaceOverlay,
 } from "../panelize/debugOverlay";
 import { type ModelIdMap, mergeInto } from "../modelIdMap";
+import type { CameraProjection } from "../store";
+import { Gizmo } from "./Gizmo";
 
 const MODEL_ID = "model";
 const WASM_VERSION = "0.0.77";
@@ -65,6 +67,7 @@ export class ViewerManager {
   private storeyMaps = new Map<string, ModelIdMap>();
   private categoryMaps = new Map<string, ModelIdMap>();
   private surfaces: PanelizableSurface[] = [];
+  private gizmo!: Gizmo;
 
   async init(container: HTMLElement) {
     const components = this.components;
@@ -81,6 +84,7 @@ export class ViewerManager {
     world.renderer = new OBC.SimpleRenderer(components, container);
     world.renderer.showLogo = false;
     world.camera = new OBC.OrthoPerspectiveCamera(components);
+    world.camera.projection.set("Orthographic"); // ortho by default
     this.world = world;
 
     components.init();
@@ -96,10 +100,14 @@ export class ViewerManager {
     this.fragments = components.get(OBC.FragmentsManager);
     const workerUrl = await OBC.FragmentsManager.getWorker();
     this.fragments.init(workerUrl);
+    this.gizmo = new Gizmo(() => world.camera.three, world.camera.controls);
+    container.appendChild(this.gizmo.canvas);
 
-    world.camera.controls.addEventListener("update", () =>
-      this.fragments.core.update(),
-    );
+    world.camera.controls.addEventListener("update", () => {
+      this.fragments.core.update();
+      this.gizmo.update();
+    });
+    this.gizmo.update();
     this.fragments.list.onItemSet.add(({ value: model }) => {
       model.useCamera(world.camera.three);
       world.scene.three.add(model.object);
@@ -144,6 +152,7 @@ export class ViewerManager {
       });
       await this.applyView();
       await this.zoomExtents();
+      this.gizmo.setVisible(true);
     } catch (err) {
       console.error(err);
       store.set({ status: "error", error: (err as Error).message });
@@ -296,6 +305,15 @@ export class ViewerManager {
     return box.isEmpty() ? null : box;
   }
 
+  /** Switch the camera between orthographic and perspective projection. */
+  setProjection(projection: CameraProjection) {
+    this.world.camera.projection.set(
+      projection === "ortho" ? "Orthographic" : "Perspective",
+    );
+    this.fragments.core.update(true);
+    this.gizmo.update();
+  }
+
   /** Frame the building from a 3/4 iso angle and cap how far the user can dolly out. */
   async zoomExtents() {
     const box = await this.getContentBox();
@@ -360,6 +378,7 @@ export class ViewerManager {
   }
 
   private async clearModel() {
+    this.gizmo.setVisible(false);
     const model = this.fragments.list.get(MODEL_ID);
     if (model) {
       this.world.scene.three.remove(model.object);
@@ -373,6 +392,7 @@ export class ViewerManager {
   }
 
   dispose() {
+    this.gizmo.dispose();
     this.components.dispose();
   }
 }

@@ -46,6 +46,12 @@ export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
       categoryVisible: { ...categoryVisible, [cat]: !categoryVisible[cat] },
     });
 
+  const anyFiltered = categories.some((c) => !categoryVisible[c]);
+  const showAllCategories = () =>
+    update({
+      categoryVisible: Object.fromEntries(categories.map((c) => [c, true])),
+    });
+
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-5 overflow-y-auto border-r border-neutral-800 bg-neutral-950 p-4">
       <div>
@@ -118,7 +124,19 @@ export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
             </Section>
           )}
 
-          <Section title="Filters">
+          <Section
+            title="Filters"
+            action={
+              anyFiltered && (
+                <button
+                  onClick={showAllCategories}
+                  className="text-[0.65rem] font-medium uppercase tracking-wider text-sky-400 hover:text-sky-300"
+                >
+                  clear
+                </button>
+              )
+            }
+          >
             <div className="flex flex-col gap-1.5">
               {categories.map((cat) => (
                 <label
@@ -146,12 +164,23 @@ export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-2">
-      <h2 className="text-[0.65rem] font-semibold uppercase tracking-wider text-neutral-500">
-        {title}
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-[0.65rem] font-semibold uppercase tracking-wider text-neutral-500">
+          {title}
+        </h2>
+        {action}
+      </div>
       {children}
     </div>
   );

@@ -1,6 +1,12 @@
 import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 import { useStore } from "../store";
+import { extractSlabSurfaces } from "../panelize/surfaces";
+import type { PanelizableSurface } from "../panelize/types";
+import {
+  buildSurfaceOverlay,
+  clearSurfaceOverlay,
+} from "../panelize/debugOverlay";
 
 /** ModelId -> set of localIds, the universal selection currency in fragments v3. */
 type ModelIdMap = { [modelId: string]: Set<number> };
@@ -68,6 +74,7 @@ export class ViewerManager {
   private bbox!: OBC.BoundingBoxer;
   private storeyMaps = new Map<string, ModelIdMap>();
   private categoryMaps = new Map<string, ModelIdMap>();
+  private surfaces: PanelizableSurface[] = [];
 
   async init(container: HTMLElement) {
     const components = this.components;
@@ -331,14 +338,53 @@ export class ViewerManager {
     await controls.fitToBox(box, true);
   }
 
+  /**
+   * Extract floor/ceiling slab surfaces for panelization, store them, and show
+   * the verification overlay. Run on demand (geometry pull is heavier than the
+   * box/category queries done at load time).
+   */
+  async extractSurfaces() {
+    useStore.getState().set({ panelizeStatus: "working" });
+    try {
+      this.surfaces = await extractSlabSurfaces({
+        fragments: this.fragments,
+        categoryMaps: this.categoryMaps,
+        storeyMaps: this.storeyMaps,
+        boxesForMap: (map) => this.boxesForMap(map),
+      });
+      useStore.getState().set({
+        panelizeStatus: "ready",
+        surfaceCount: this.surfaces.length,
+        showSurfaceOverlay: true,
+      });
+      this.renderSurfaceOverlay(true);
+    } catch (err) {
+      console.error(err);
+      useStore.getState().set({ panelizeStatus: "error" });
+    }
+  }
+
+  /** Add or remove the slab-surface overlay from the scene. */
+  renderSurfaceOverlay(show: boolean) {
+    const scene = this.world.scene.three;
+    clearSurfaceOverlay(scene);
+    if (show && this.surfaces.length) {
+      scene.add(buildSurfaceOverlay(this.surfaces));
+    }
+    this.fragments.core.update(true);
+  }
+
   private async clearModel() {
     const model = this.fragments.list.get(MODEL_ID);
     if (model) {
       this.world.scene.three.remove(model.object);
       await this.fragments.core.disposeModel(MODEL_ID);
     }
+    clearSurfaceOverlay(this.world.scene.three);
+    this.surfaces = [];
     this.storeyMaps.clear();
     this.categoryMaps.clear();
+    useStore.getState().set({ panelizeStatus: "idle", surfaceCount: 0 });
   }
 
   dispose() {

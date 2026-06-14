@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 export type ViewMode = "normal" | "solo";
 export type Status = "idle" | "loading" | "ready" | "error";
+export type PanelizeStatus = "idle" | "working" | "ready" | "error";
 
 /** A building storey discovered in the IFC model. */
 export interface Story {
@@ -21,6 +22,10 @@ interface ViewerState {
   categories: string[];
   categoryVisible: Record<string, boolean>;
 
+  panelizeStatus: PanelizeStatus;
+  surfaceCount: number;
+  showSurfaceOverlay: boolean;
+
   set: (partial: Partial<ViewerState>) => void;
   reset: () => void;
 }
@@ -35,6 +40,9 @@ const initial: Omit<ViewerState, "set" | "reset"> = {
   soloStory: null,
   categories: [],
   categoryVisible: {},
+  panelizeStatus: "idle",
+  surfaceCount: 0,
+  showSurfaceOverlay: false,
 };
 
 export const useStore = create<ViewerState>((set) => ({

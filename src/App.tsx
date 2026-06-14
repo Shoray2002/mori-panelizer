@@ -23,10 +23,19 @@ export default function App() {
   const handleFile = (file: File) => managerRef.current?.loadIfc(file);
   const applyView = () => managerRef.current?.applyView();
   const zoomExtents = () => managerRef.current?.zoomExtents();
+  const extractSurfaces = () => managerRef.current?.extractSurfaces();
+  const toggleOverlay = (show: boolean) =>
+    managerRef.current?.renderSurfaceOverlay(show);
 
   return (
     <div className="flex h-full w-full">
-      <Sidebar onApplyView={applyView} onFile={handleFile} onZoomExtents={zoomExtents} />
+      <Sidebar
+        onApplyView={applyView}
+        onFile={handleFile}
+        onZoomExtents={zoomExtents}
+        onExtractSurfaces={extractSurfaces}
+        onToggleOverlay={toggleOverlay}
+      />
       <div className="relative flex-1">
         <div ref={containerRef} className="absolute inset-0" />
         {status !== "ready" && <UploadDropzone onFile={handleFile} />}

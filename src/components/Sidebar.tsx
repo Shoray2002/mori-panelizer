@@ -10,10 +10,18 @@ interface Props {
   onApplyView: () => void;
   onFile: (file: File) => void;
   onZoomExtents: () => void;
+  onExtractSurfaces: () => void;
+  onToggleOverlay: (show: boolean) => void;
 }
 
 /** Left control rail: file, view mode, storey isolation, filters. */
-export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
+export function Sidebar({
+  onApplyView,
+  onFile,
+  onZoomExtents,
+  onExtractSurfaces,
+  onToggleOverlay,
+}: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const {
     status,
@@ -23,6 +31,9 @@ export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
     soloStory,
     categories,
     categoryVisible,
+    panelizeStatus,
+    surfaceCount,
+    showSurfaceOverlay,
     set,
   } = useStore();
 
@@ -51,6 +62,12 @@ export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
     update({
       categoryVisible: Object.fromEntries(categories.map((c) => [c, true])),
     });
+
+  const toggleOverlay = () => {
+    const next = !showSurfaceOverlay;
+    set({ showSurfaceOverlay: next });
+    onToggleOverlay(next);
+  };
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-5 overflow-y-auto border-r border-neutral-800 bg-neutral-950 p-4">
@@ -153,6 +170,37 @@ export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
                 </label>
               ))}
             </div>
+          </Section>
+
+          <Section title="Panelize">
+            <button
+              onClick={onExtractSurfaces}
+              disabled={panelizeStatus === "working"}
+              className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500 disabled:opacity-50"
+            >
+              {panelizeStatus === "working"
+                ? "Extracting…"
+                : "Extract slab surfaces"}
+            </button>
+            {panelizeStatus === "ready" && (
+              <>
+                <p className="text-xs text-neutral-500">
+                  {surfaceCount} surface{surfaceCount === 1 ? "" : "s"} found
+                </p>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-300">
+                  <input
+                    type="checkbox"
+                    checked={showSurfaceOverlay}
+                    onChange={toggleOverlay}
+                    className="accent-sky-500"
+                  />
+                  Show overlay
+                </label>
+              </>
+            )}
+            {panelizeStatus === "error" && (
+              <p className="text-xs text-red-400">Extraction failed — see console</p>
+            )}
           </Section>
 
           <p className="mt-auto text-xs text-neutral-600">

@@ -40,17 +40,22 @@ export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
 
   const setMode = (mode: ViewMode) => {
     // Default the solo target to the first storey if none chosen yet.
-    const solo = mode === "solo" && !soloStory ? stories[0]?.name ?? null : soloStory;
+    const solo =
+      mode === "solo" && !soloStory ? (stories[0]?.name ?? null) : soloStory;
     update({ viewMode: mode, soloStory: solo });
   };
 
   const toggleCategory = (cat: CategoryName) =>
-    update({ categoryVisible: { ...categoryVisible, [cat]: !categoryVisible[cat] } });
+    update({
+      categoryVisible: { ...categoryVisible, [cat]: !categoryVisible[cat] },
+    });
 
   return (
     <aside className="flex w-64 shrink-0 flex-col gap-5 overflow-y-auto border-r border-neutral-800 bg-neutral-950 p-4">
       <div>
-        <h1 className="text-sm font-semibold text-neutral-100">Mori Viewer</h1>
+        <h1 className="text-sm font-semibold text-neutral-100">
+          Mori Panelizer
+        </h1>
         <p className="mt-0.5 truncate text-xs text-neutral-500">
           {fileName ?? "No file loaded"}
         </p>

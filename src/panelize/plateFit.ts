@@ -1,15 +1,18 @@
 import * as THREE from "three";
 import type { PlateFit, Vec2 } from "./types";
 import { area as ringArea, orient, simplifyRing } from "./geometry2d";
-
-/** Triangle normals within this angle of the plate normal belong to a face. */
-const FACE_CONE = Math.cos(THREE.MathUtils.degToRad(20));
-/** The two large faces must hold at least this fraction of total area to be a plate. */
-const MIN_FACE_AREA_FRACTION = 0.2;
+import { IDENTITY_MATRIX, planeBasis, projectToPlane } from "./geometry3d";
+import {
+  FACE_CONE,
+  MIN_FACE_AREA_FRACTION,
+  NORMAL_HISTOGRAM_Q,
+  SIMPLIFY_EPS,
+  WELD_EPS,
+} from "./constants";
 
 interface FitOpts {
-  weldEps?: number; // weld vertices closer than this (model units)
-  simplifyEps?: number; // collapse outline points within this of a straight edge
+  weldEps?: number;
+  simplifyEps?: number;
 }
 
 /**
@@ -30,7 +33,7 @@ function bakeVertices(
   transform: THREE.Matrix4,
 ): THREE.Vector3[] {
   const out: THREE.Vector3[] = [];
-  const isIdentity = transform.equals(IDENTITY);
+  const isIdentity = transform.equals(IDENTITY_MATRIX);
   for (let i = 0; i < positions.length; i += 3) {
     const v = new THREE.Vector3(positions[i], positions[i + 1], positions[i + 2]);
     if (!isIdentity) v.applyMatrix4(transform);
@@ -38,7 +41,6 @@ function bakeVertices(
   }
   return out;
 }
-const IDENTITY = new THREE.Matrix4();
 
 /** Triangle index triples; synthesizes sequential triples when none are given. */
 function triangles(
@@ -120,8 +122,8 @@ export function fitPlate(
   localId: number,
   opts: FitOpts = {},
 ): PlateFit | null {
-  const weldEps = opts.weldEps ?? 0.001;
-  const simplifyEps = opts.simplifyEps ?? 0.01;
+  const weldEps = opts.weldEps ?? WELD_EPS;
+  const simplifyEps = opts.simplifyEps ?? SIMPLIFY_EPS;
 
   const verts = bakeVertices(positions, transform);
   if (verts.length < 3) return null;
@@ -141,7 +143,7 @@ export function fitPlate(
     totalArea += triArea;
     if (triArea > 1e-12) {
       const folded = foldNormal(normal);
-      const q = 0.08;
+      const q = NORMAL_HISTOGRAM_Q;
       const k = `${Math.round(folded.x / q)},${Math.round(folded.y / q)},${Math.round(folded.z / q)}`;
       const slot = buckets.get(k) ?? { sum: new THREE.Vector3(), area: 0 };
       slot.sum.add(folded.clone().multiplyScalar(triArea));
@@ -205,33 +207,17 @@ export function fitPlate(
   const loops = extractBoundaryLoops(weldedTris);
   if (!loops.length) return null;
 
-  // Face plane + UV basis. origin = centroid of face verts; u = world axis least
-  // parallel to n, projected onto the plane.
+  // origin = centroid of face verts; UV basis derived from the plate normal.
   const origin = new THREE.Vector3();
   for (const v of canonVerts) origin.add(v);
   origin.multiplyScalar(1 / canonVerts.length);
-
-  const axes = [
-    new THREE.Vector3(1, 0, 0),
-    new THREE.Vector3(0, 1, 0),
-    new THREE.Vector3(0, 0, 1),
-  ];
-  const axis = axes.reduce((a, b) =>
-    Math.abs(a.dot(n)) <= Math.abs(b.dot(n)) ? a : b,
-  );
-  const u = axis.clone().sub(n.clone().multiplyScalar(axis.dot(n))).normalize();
-  const v = new THREE.Vector3().crossVectors(n, u).normalize();
-
-  const toUV = (p: THREE.Vector3): Vec2 => {
-    const d = new THREE.Vector3().subVectors(p, origin);
-    return { x: d.dot(u), y: d.dot(v) };
-  };
+  const { u, v } = planeBasis(n);
 
   // Outer loop = largest by UV area.
   let outline: Vec2[] = [];
   let outlineArea = 0;
   for (const loop of loops) {
-    const uv = loop.map((vi) => toUV(canonVerts[vi]));
+    const uv = loop.map((vi) => projectToPlane(canonVerts[vi], origin, u, v));
     const a = ringArea(uv);
     if (a > outlineArea) {
       outlineArea = a;

@@ -7,9 +7,7 @@ import {
   buildSurfaceOverlay,
   clearSurfaceOverlay,
 } from "../panelize/debugOverlay";
-
-/** ModelId -> set of localIds, the universal selection currency in fragments v3. */
-type ModelIdMap = { [modelId: string]: Set<number> };
+import { type ModelIdMap, mergeInto } from "../modelIdMap";
 
 const MODEL_ID = "model";
 const WASM_VERSION = "0.0.77";
@@ -49,14 +47,6 @@ function median(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
-
-/** Merge one ModelIdMap's localIds into another, in place. */
-function mergeInto(target: ModelIdMap, source: ModelIdMap) {
-  for (const [modelId, set] of Object.entries(source)) {
-    const into = (target[modelId] ??= new Set());
-    for (const id of set) into.add(id);
-  }
 }
 
 /**
@@ -288,12 +278,7 @@ export class ViewerManager {
   /** Merge the slab + wall items into a single ModelIdMap for framing. */
   private buildContentMap(): ModelIdMap {
     const merged: ModelIdMap = {};
-    for (const map of this.categoryMaps.values()) {
-      for (const [modelId, set] of Object.entries(map)) {
-        merged[modelId] ??= new Set();
-        for (const id of set) merged[modelId].add(id);
-      }
-    }
+    for (const map of this.categoryMaps.values()) mergeInto(merged, map);
     return merged;
   }
 

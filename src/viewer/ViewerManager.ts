@@ -38,6 +38,21 @@ function prettyCategory(raw: string): string {
   return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
 }
 
+function median(xs: number[]): number {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/** Merge one ModelIdMap's localIds into another, in place. */
+function mergeInto(target: ModelIdMap, source: ModelIdMap) {
+  for (const [modelId, set] of Object.entries(source)) {
+    const into = (target[modelId] ??= new Set());
+    for (const id of set) into.add(id);
+  }
+}
+
 /**
  * Owns the That Open Engine (v3) setup and all model operations: load IFC,
  * classify by storey/category, and drive the normal / solo views.
@@ -142,17 +157,9 @@ export class ViewerManager {
   private async buildClassifications() {
     this.storeyMaps.clear();
     this.categoryMaps.clear();
-    this.classifier.list.delete("Levels");
-    await this.classifier.byIfcBuildingStorey({ classificationName: "Levels" });
-    const levels = this.classifier.list.get("Levels");
-    if (levels) {
-      for (const [name, group] of levels) {
-        const map = (await group.get()) as ModelIdMap;
-        const hasItems = Object.values(map).some((set) => set.size > 0);
-        if (hasItems) this.storeyMaps.set(name, map);
-      }
-    }
 
+    // Categories first: discover the structural element categories present in
+    // the file (also used to derive the storey height from wall geometry).
     for (const [, model] of this.fragments.list) {
       const raw = await model.getCategories();
       for (const cat of raw) {
@@ -168,6 +175,85 @@ export class ViewerManager {
         this.categoryMaps.set(name, map);
       }
     }
+
+    await this.buildStoreys();
+  }
+
+  /**
+   * Group the IFC building storeys into physical floors. IFC has no field that
+   * separates an architectural floor from a construction datum (sill/deck/head),
+   * so this is purely geometric and naming-agnostic: each storey is placed at
+   * its base elevation, and storeys are binned into bands one storey-height tall.
+   * A normal architectural file (one storey per floor) yields one floor each; a
+   * structural model with many per-floor datums collapses them into real floors.
+   */
+  private async buildStoreys() {
+    this.classifier.list.delete("Levels");
+    await this.classifier.byIfcBuildingStorey({ classificationName: "Levels" });
+    const levels = this.classifier.list.get("Levels");
+    if (!levels) return;
+
+    // Keep storeys that own geometry, tagged with their base elevation (min Y).
+    const storeys: { map: ModelIdMap; base: number }[] = [];
+    for (const [, group] of levels) {
+      const map = (await group.get()) as ModelIdMap;
+      const boxes = (await this.boxesForMap(map)).filter((b) => !b.isEmpty());
+      if (!boxes.length) continue;
+      const base = Math.min(...boxes.map((b) => b.min.y));
+      storeys.push({ map, base });
+    }
+    if (!storeys.length) return;
+
+    storeys.sort((a, b) => a.base - b.base);
+
+    // Band width = storey height derived from the model. Median wall height is
+    // the best proxy; fall back to the median gap between storey elevations.
+    let storeyHeight = await this.deriveStoreyHeight();
+    if (storeyHeight <= 0) {
+      const gaps = storeys
+        .slice(1)
+        .map((s, i) => s.base - storeys[i].base)
+        .filter((g) => g > 0.1);
+      storeyHeight = median(gaps);
+    }
+
+    const minBase = storeys[0].base;
+    const bands = new Map<number, ModelIdMap>();
+    for (const s of storeys) {
+      const idx =
+        storeyHeight > 0
+          ? Math.floor((s.base - minBase) / storeyHeight)
+          : bands.size;
+      const target = bands.get(idx) ?? {};
+      mergeInto(target, s.map);
+      bands.set(idx, target);
+    }
+
+    [...bands.keys()]
+      .sort((a, b) => a - b)
+      .forEach((idx, i) => this.storeyMaps.set(`Level ${i + 1}`, bands.get(idx)!));
+  }
+
+  /** Median height (max.y - min.y) of the wall elements, in model units. */
+  private async deriveStoreyHeight(): Promise<number> {
+    const walls: ModelIdMap = {};
+    for (const [name, map] of this.categoryMaps) {
+      if (/wall/i.test(name)) mergeInto(walls, map);
+    }
+    const boxes = (await this.boxesForMap(walls)).filter((b) => !b.isEmpty());
+    const heights = boxes.map((b) => b.max.y - b.min.y).filter((h) => h > 0.1);
+    return median(heights);
+  }
+
+  /** Per-element world-space boxes for every item in a ModelIdMap. */
+  private async boxesForMap(map: ModelIdMap): Promise<THREE.Box3[]> {
+    const boxes: THREE.Box3[] = [];
+    for (const [, model] of this.fragments.list) {
+      const ids = map[model.modelId];
+      if (!ids?.size) continue;
+      boxes.push(...(await model.getBoxes([...ids])));
+    }
+    return boxes;
   }
 
   /**

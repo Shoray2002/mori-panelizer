@@ -1,10 +1,5 @@
 import { useRef, type ReactNode } from "react";
-import {
-  useStore,
-  FILTERABLE_CATEGORIES,
-  type ViewMode,
-  type CategoryName,
-} from "../store";
+import { useStore, type ViewMode } from "../store";
 
 const VIEW_MODES: { id: ViewMode; label: string }[] = [
   { id: "normal", label: "Normal" },
@@ -26,6 +21,7 @@ export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
     stories,
     viewMode,
     soloStory,
+    categories,
     categoryVisible,
     set,
   } = useStore();
@@ -45,7 +41,7 @@ export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
     update({ viewMode: mode, soloStory: solo });
   };
 
-  const toggleCategory = (cat: CategoryName) =>
+  const toggleCategory = (cat: string) =>
     update({
       categoryVisible: { ...categoryVisible, [cat]: !categoryVisible[cat] },
     });
@@ -124,7 +120,7 @@ export function Sidebar({ onApplyView, onFile, onZoomExtents }: Props) {
 
           <Section title="Filters">
             <div className="flex flex-col gap-1.5">
-              {FILTERABLE_CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <label
                   key={cat}
                   className="flex cursor-pointer items-center gap-2 text-xs text-neutral-300"

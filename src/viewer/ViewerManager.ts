@@ -1,18 +1,42 @@
 import * as THREE from "three";
 import * as OBC from "@thatopen/components";
-import { useStore, type CategoryName } from "../store";
+import { useStore } from "../store";
 
 /** ModelId -> set of localIds, the universal selection currency in fragments v3. */
 type ModelIdMap = { [modelId: string]: Set<number> };
 
-/** RegExp matchers for the categories we expose as filters. */
-const CATEGORY_REGEX: Record<CategoryName, RegExp[]> = {
-  Slabs: [/SLAB/, /ROOF/],
-  Walls: [/WALL/],
-};
-
 const MODEL_ID = "model";
 const WASM_VERSION = "0.0.77";
+
+/**
+ * Physical structural element categories we expose as filters. `getCategories`
+ * also returns type definitions (IfcWallType), materials, property sets and
+ * units — none of which are panelizable geometry — so we allowlist instead of
+ * trying to deny-list the long tail of non-physical entities.
+ */
+const STRUCTURAL_CATEGORIES = new Set([
+  "IFCWALL",
+  "IFCWALLSTANDARDCASE",
+  "IFCSLAB",
+  "IFCROOF",
+  "IFCBEAM",
+  "IFCCOLUMN",
+  "IFCMEMBER",
+  "IFCPLATE",
+  "IFCFOOTING",
+  "IFCPILE",
+  "IFCCOVERING",
+  "IFCCURTAINWALL",
+  "IFCSTAIR",
+  "IFCSTAIRFLIGHT",
+  "IFCRAILING",
+  "IFCBUILDINGELEMENTPROXY",
+]);
+
+function prettyCategory(raw: string): string {
+  const base = raw.replace(/^IFC/i, "");
+  return base.charAt(0).toUpperCase() + base.slice(1).toLowerCase();
+}
 
 /**
  * Owns the That Open Engine (v3) setup and all model operations: load IFC,
@@ -27,11 +51,8 @@ export class ViewerManager {
   private classifier!: OBC.Classifier;
   private hider!: OBC.Hider;
   private bbox!: OBC.BoundingBoxer;
-
-  /** storeyName -> items in that storey. */
   private storeyMaps = new Map<string, ModelIdMap>();
-  /** category -> items in that category. */
-  private categoryMaps = new Map<CategoryName, ModelIdMap>();
+  private categoryMaps = new Map<string, ModelIdMap>();
 
   async init(container: HTMLElement) {
     const components = this.components;
@@ -97,7 +118,18 @@ export class ViewerManager {
       await this.buildClassifications();
 
       const stories = [...this.storeyMaps.keys()].map((name) => ({ name }));
-      store.set({ status: "ready", stories, viewMode: "normal", soloStory: null });
+      const categories = [...this.categoryMaps.keys()].sort();
+      const categoryVisible: Record<string, boolean> = {};
+      for (const c of categories) categoryVisible[c] = true;
+
+      store.set({
+        status: "ready",
+        stories,
+        categories,
+        categoryVisible,
+        viewMode: "normal",
+        soloStory: null,
+      });
       await this.applyView();
       await this.zoomExtents();
     } catch (err) {
@@ -110,26 +142,31 @@ export class ViewerManager {
   private async buildClassifications() {
     this.storeyMaps.clear();
     this.categoryMaps.clear();
-
+    this.classifier.list.delete("Levels");
     await this.classifier.byIfcBuildingStorey({ classificationName: "Levels" });
     const levels = this.classifier.list.get("Levels");
     if (levels) {
       for (const [name, group] of levels) {
-        this.storeyMaps.set(name, (await group.get()) as ModelIdMap);
+        const map = (await group.get()) as ModelIdMap;
+        const hasItems = Object.values(map).some((set) => set.size > 0);
+        if (hasItems) this.storeyMaps.set(name, map);
       }
     }
 
-    for (const [cat, regexes] of Object.entries(CATEGORY_REGEX) as [
-      CategoryName,
-      RegExp[],
-    ][]) {
-      const map: ModelIdMap = {};
-      for (const [, model] of this.fragments.list) {
-        const items = await model.getItemsOfCategories(regexes);
+    for (const [, model] of this.fragments.list) {
+      const raw = await model.getCategories();
+      for (const cat of raw) {
+        if (!STRUCTURAL_CATEGORIES.has(cat.toUpperCase())) continue;
+        const items = await model.getItemsOfCategories([new RegExp(`^${cat}$`)]);
         const ids = Object.values(items).flat();
-        if (ids.length) map[model.modelId] = new Set(ids);
+        if (!ids.length) continue;
+
+        const name = prettyCategory(cat);
+        const map = this.categoryMaps.get(name) ?? {};
+        const set = (map[model.modelId] ??= new Set());
+        for (const id of ids) set.add(id);
+        this.categoryMaps.set(name, map);
       }
-      this.categoryMaps.set(cat, map);
     }
   }
 

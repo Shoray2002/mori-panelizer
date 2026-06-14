@@ -8,10 +8,6 @@ export interface Story {
   name: string;
 }
 
-/** Categories we expose as filter toggles (the MVP surfaces: floor/ceiling slabs + walls). */
-export const FILTERABLE_CATEGORIES = ["Slabs", "Walls"] as const;
-export type CategoryName = (typeof FILTERABLE_CATEGORIES)[number];
-
 interface ViewerState {
   status: Status;
   fileName: string | null;
@@ -21,38 +17,28 @@ interface ViewerState {
   stories: Story[];
   viewMode: ViewMode;
   soloStory: string | null;
-  categoryVisible: Record<CategoryName, boolean>;
+
+  categories: string[];
+  categoryVisible: Record<string, boolean>;
 
   set: (partial: Partial<ViewerState>) => void;
   reset: () => void;
 }
 
-const initialCategoryVisible: Record<CategoryName, boolean> = {
-  Slabs: true,
-  Walls: true,
-};
-
-export const useStore = create<ViewerState>((set) => ({
+const initial: Omit<ViewerState, "set" | "reset"> = {
   status: "idle",
   fileName: null,
   error: null,
   progress: 0,
-
   stories: [],
   viewMode: "normal",
   soloStory: null,
-  categoryVisible: { ...initialCategoryVisible },
+  categories: [],
+  categoryVisible: {},
+};
 
+export const useStore = create<ViewerState>((set) => ({
+  ...initial,
   set: (partial) => set(partial),
-  reset: () =>
-    set({
-      status: "idle",
-      fileName: null,
-      error: null,
-      progress: 0,
-      stories: [],
-      viewMode: "normal",
-      soloStory: null,
-      categoryVisible: { ...initialCategoryVisible },
-    }),
+  reset: () => set({ ...initial }),
 }));

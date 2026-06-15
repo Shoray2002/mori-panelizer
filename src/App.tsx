@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ViewerManager } from "./viewer/ViewerManager";
-import { useStore } from "./store";
+import { useStore, type CameraProjection } from "./store";
 import { Sidebar } from "./components/Sidebar";
 import { UploadDropzone } from "./components/UploadDropzone";
 
@@ -26,6 +26,8 @@ export default function App() {
   const extractSurfaces = () => managerRef.current?.extractSurfaces();
   const toggleOverlay = (show: boolean) =>
     managerRef.current?.renderSurfaceOverlay(show);
+  const setProjection = (projection: CameraProjection) =>
+    managerRef.current?.setProjection(projection);
 
   return (
     <div className="flex h-full w-full">
@@ -35,6 +37,7 @@ export default function App() {
         onZoomExtents={zoomExtents}
         onExtractSurfaces={extractSurfaces}
         onToggleOverlay={toggleOverlay}
+        onSetProjection={setProjection}
       />
       <div className="relative flex-1">
         <div ref={containerRef} className="absolute inset-0" />

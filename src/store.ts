@@ -3,6 +3,7 @@ import { create } from "zustand";
 export type ViewMode = "normal" | "solo";
 export type Status = "idle" | "loading" | "ready" | "error";
 export type PanelizeStatus = "idle" | "working" | "ready" | "error";
+export type CameraProjection = "ortho" | "perspective";
 
 /** A building storey discovered in the IFC model. */
 export interface Story {
@@ -18,6 +19,7 @@ interface ViewerState {
   stories: Story[];
   viewMode: ViewMode;
   soloStory: string | null;
+  cameraProjection: CameraProjection;
 
   categories: string[];
   categoryVisible: Record<string, boolean>;
@@ -38,6 +40,7 @@ const initial: Omit<ViewerState, "set" | "reset"> = {
   stories: [],
   viewMode: "normal",
   soloStory: null,
+  cameraProjection: "ortho",
   categories: [],
   categoryVisible: {},
   panelizeStatus: "idle",

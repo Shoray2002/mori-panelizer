@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import type { SurfaceClass } from "./types";
 
 // --- Surface selection ------------------------------------------------------
 
@@ -52,9 +51,5 @@ export const CONV_M: Record<string, number> = {
 
 export const OVERLAY_GROUP = "panelize-overlay";
 export const OVERLAY_OPACITY = 0.25;
-export const SURFACE_COLORS: Record<SurfaceClass, number> = {
-  floor: 0x3b82f6,
-  ceiling: 0x22c55e,
-  wall: 0xf59e0b,
-  roof: 0xa855f7,
-};
+/** Single overlay color for all surfaces (no per-class coding). */
+export const OVERLAY_COLOR = 0x3b82f6;

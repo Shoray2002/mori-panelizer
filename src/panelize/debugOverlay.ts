@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { PanelizableSurface, Vec2 } from "./types";
-import { OVERLAY_GROUP, OVERLAY_OPACITY, SURFACE_COLORS } from "./constants";
+import { OVERLAY_COLOR, OVERLAY_GROUP, OVERLAY_OPACITY } from "./constants";
 
 const toPath = (ring: Vec2[]): THREE.Vector2[] =>
   ring.map((p) => new THREE.Vector2(p.x, p.y));
@@ -8,7 +8,7 @@ const toPath = (ring: Vec2[]): THREE.Vector2[] =>
 /**
  * Build a filled + outlined overlay for each extracted surface, placed in world
  * via its worldFromUV transform — a visual check of extraction before the grid
- * stage. Colored by surface kind.
+ * stage.
  */
 export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group {
   const group = new THREE.Group();
@@ -18,7 +18,7 @@ export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group
     const shape = new THREE.Shape(toPath(s.region.outer));
     for (const hole of s.region.holes) shape.holes.push(new THREE.Path(toPath(hole)));
 
-    const color = SURFACE_COLORS[s.klass];
+    const color = OVERLAY_COLOR;
     const fill = new THREE.Mesh(
       new THREE.ShapeGeometry(shape),
       new THREE.MeshBasicMaterial({

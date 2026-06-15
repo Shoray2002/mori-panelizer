@@ -1,9 +1,14 @@
 import { useRef, type ReactNode } from "react";
-import { useStore, type ViewMode } from "../store";
+import { useStore, type CameraProjection, type ViewMode } from "../store";
 
 const VIEW_MODES: { id: ViewMode; label: string }[] = [
   { id: "normal", label: "Normal" },
   { id: "solo", label: "Solo" },
+];
+
+const PROJECTIONS: { id: CameraProjection; label: string }[] = [
+  { id: "ortho", label: "Ortho" },
+  { id: "perspective", label: "Perspective" },
 ];
 
 interface Props {
@@ -12,6 +17,7 @@ interface Props {
   onZoomExtents: () => void;
   onExtractSurfaces: () => void;
   onToggleOverlay: (show: boolean) => void;
+  onSetProjection: (projection: CameraProjection) => void;
 }
 
 /** Left control rail: file, view mode, storey isolation, filters. */
@@ -21,6 +27,7 @@ export function Sidebar({
   onZoomExtents,
   onExtractSurfaces,
   onToggleOverlay,
+  onSetProjection,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const {
@@ -31,6 +38,7 @@ export function Sidebar({
     soloStory,
     categories,
     categoryVisible,
+    cameraProjection,
     panelizeStatus,
     surfaceCount,
     showSurfaceOverlay,
@@ -62,6 +70,11 @@ export function Sidebar({
     update({
       categoryVisible: Object.fromEntries(categories.map((c) => [c, true])),
     });
+
+  const setProjection = (projection: CameraProjection) => {
+    set({ cameraProjection: projection });
+    onSetProjection(projection);
+  };
 
   const toggleOverlay = () => {
     const next = !showSurfaceOverlay;
@@ -109,6 +122,21 @@ export function Sidebar({
                   }`}
                 >
                   {m.label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-1 rounded-md bg-neutral-900 p-1">
+              {PROJECTIONS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setProjection(p.id)}
+                  className={`rounded px-2 py-1 text-xs font-medium transition ${
+                    cameraProjection === p.id
+                      ? "bg-sky-500 text-white"
+                      : "text-neutral-400 hover:text-neutral-200"
+                  }`}
+                >
+                  {p.label}
                 </button>
               ))}
             </div>

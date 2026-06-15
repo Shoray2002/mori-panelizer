@@ -28,6 +28,7 @@ export default function App() {
     managerRef.current?.renderSurfaceOverlay(show);
   const setProjection = (projection: CameraProjection) =>
     managerRef.current?.setProjection(projection);
+  const selectSurface = (id: string) => managerRef.current?.selectSurface(id);
 
   return (
     <div className="flex h-full w-full">
@@ -38,6 +39,7 @@ export default function App() {
         onExtractSurfaces={extractSurfaces}
         onToggleOverlay={toggleOverlay}
         onSetProjection={setProjection}
+        onSelectSurface={selectSurface}
       />
       <div className="relative flex-1">
         <div ref={containerRef} className="absolute inset-0" />

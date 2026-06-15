@@ -18,6 +18,7 @@ interface Props {
   onExtractSurfaces: () => void;
   onToggleOverlay: (show: boolean) => void;
   onSetProjection: (projection: CameraProjection) => void;
+  onSelectSurface: (id: string) => void;
 }
 
 /** Left control rail: file, view mode, storey isolation, filters. */
@@ -28,6 +29,7 @@ export function Sidebar({
   onExtractSurfaces,
   onToggleOverlay,
   onSetProjection,
+  onSelectSurface,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const {
@@ -40,8 +42,9 @@ export function Sidebar({
     categoryVisible,
     cameraProjection,
     panelizeStatus,
-    surfaceCount,
+    surfaceList,
     showSurfaceOverlay,
+    selectedSurfaceId,
     set,
   } = useStore();
 
@@ -213,7 +216,7 @@ export function Sidebar({
             {panelizeStatus === "ready" && (
               <>
                 <p className="text-xs text-neutral-500">
-                  {surfaceCount} surface{surfaceCount === 1 ? "" : "s"} found
+                  {surfaceList.length} surface{surfaceList.length === 1 ? "" : "s"} found
                 </p>
                 <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-300">
                   <input
@@ -224,6 +227,22 @@ export function Sidebar({
                   />
                   Show overlay
                 </label>
+                <div className="flex flex-col gap-1">
+                  {surfaceList.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => onSelectSurface(s.id)}
+                      className={`flex justify-between rounded px-2 py-1 text-left text-xs transition ${
+                        selectedSurfaceId === s.id
+                          ? "bg-amber-500/20 text-amber-300"
+                          : "text-neutral-400 hover:bg-neutral-900"
+                      }`}
+                    >
+                      <span>{s.id}</span>
+                      <span className="text-neutral-600">{s.klass}</span>
+                    </button>
+                  ))}
+                </div>
               </>
             )}
             {panelizeStatus === "error" && (

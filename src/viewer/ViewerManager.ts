@@ -7,6 +7,7 @@ import {
   buildSurfaceOverlay,
   clearSurfaceOverlay,
 } from "../panelize/debugOverlay";
+import { OVERLAY_COLOR, OVERLAY_GROUP, OVERLAY_OPACITY } from "../panelize/constants";
 import { type ModelIdMap, mergeInto } from "../modelIdMap";
 import type { CameraProjection } from "../store";
 import { Gizmo } from "./Gizmo";
@@ -37,6 +38,8 @@ const STRUCTURAL_CATEGORIES = new Set([
   "IFCSTAIRFLIGHT",
   "IFCRAILING",
   "IFCBUILDINGELEMENTPROXY",
+  "IFCWINDOW",
+  "IFCDOOR",
 ]);
 
 function prettyCategory(raw: string): string {
@@ -68,8 +71,14 @@ export class ViewerManager {
   private categoryMaps = new Map<string, ModelIdMap>();
   private surfaces: PanelizableSurface[] = [];
   private gizmo!: Gizmo;
+  private container!: HTMLElement;
+  private raycaster = new THREE.Raycaster();
+  private pointerDownAt: { x: number; y: number } | null = null;
+  private selectedFill: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> | null =
+    null;
 
   async init(container: HTMLElement) {
+    this.container = container;
     const components = this.components;
 
     const worlds = components.get(OBC.Worlds);
@@ -102,6 +111,10 @@ export class ViewerManager {
     this.fragments.init(workerUrl);
     this.gizmo = new Gizmo(() => world.camera.three, world.camera.controls);
     container.appendChild(this.gizmo.canvas);
+
+    // Click (not drag) on an extracted surface selects it.
+    container.addEventListener("pointerdown", this.onPointerDown);
+    container.addEventListener("pointerup", this.onPointerUp);
 
     world.camera.controls.addEventListener("update", () => {
       this.fragments.core.update();
@@ -357,7 +370,7 @@ export class ViewerManager {
       });
       useStore.getState().set({
         panelizeStatus: "ready",
-        surfaceCount: this.surfaces.length,
+        surfaceList: this.surfaces.map((s) => ({ id: s.id, klass: s.klass })),
         showSurfaceOverlay: true,
       });
       this.renderSurfaceOverlay(true);
@@ -371,9 +384,77 @@ export class ViewerManager {
   renderSurfaceOverlay(show: boolean) {
     const scene = this.world.scene.three;
     clearSurfaceOverlay(scene);
+    this.selectedFill = null; // overlay rebuilt — old mesh refs are stale
+    useStore.getState().set({ selectedSurfaceId: null });
     if (show && this.surfaces.length) {
       scene.add(buildSurfaceOverlay(this.surfaces));
     }
+    this.fragments.core.update(true);
+  }
+
+  private onPointerDown = (e: PointerEvent) => {
+    this.pointerDownAt = { x: e.clientX, y: e.clientY };
+  };
+
+  private onPointerUp = (e: PointerEvent) => {
+    const down = this.pointerDownAt;
+    this.pointerDownAt = null;
+    if (!down) return;
+    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4) return; // drag, not click
+    this.pickSurface(e);
+  };
+
+  /** Raycast the overlay; highlight the hit surface (or clear on a miss). */
+  private pickSurface(e: PointerEvent) {
+    const group = this.world.scene.three.getObjectByName(OVERLAY_GROUP);
+    if (!group) return;
+
+    const rect = this.container.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    this.raycaster.setFromCamera(ndc, this.world.camera.three);
+    const fills = group.children.filter((o) => (o as THREE.Mesh).isMesh);
+    const hit = this.raycaster.intersectObjects(fills, false)[0];
+    this.highlightFill((hit?.object as typeof this.selectedFill) ?? null);
+  }
+
+  /** Select a surface by id from the sidebar list (shows the overlay if hidden). */
+  selectSurface(id: string) {
+    if (!this.world.scene.three.getObjectByName(OVERLAY_GROUP)) {
+      useStore.getState().set({ showSurfaceOverlay: true });
+      this.renderSurfaceOverlay(true);
+    }
+    const group = this.world.scene.three.getObjectByName(OVERLAY_GROUP);
+    const mesh = group?.children.find((o) => o.userData.surfaceId === id);
+    this.highlightFill((mesh as typeof this.selectedFill) ?? null);
+  }
+
+  /** Recolor the given fill as selected, restoring the previously selected one. */
+  private highlightFill(fill: typeof this.selectedFill) {
+    if (this.selectedFill) {
+      const m = this.selectedFill.material;
+      m.color.set(OVERLAY_COLOR);
+      m.opacity = OVERLAY_OPACITY;
+      m.transparent = true;
+      m.depthWrite = false;
+      m.needsUpdate = true;
+    }
+    this.selectedFill = fill;
+    if (this.selectedFill) {
+      // Render the selection solid so it reads the same whether it floats over
+      // black or overlaps other slabs (transparent fills sort inconsistently).
+      const m = this.selectedFill.material;
+      m.color.set(0xfacc15);
+      m.opacity = 1;
+      m.transparent = false;
+      m.depthWrite = true;
+      m.needsUpdate = true;
+    }
+    useStore.getState().set({
+      selectedSurfaceId: (this.selectedFill?.userData.surfaceId as string) ?? null,
+    });
     this.fragments.core.update(true);
   }
 
@@ -388,10 +469,12 @@ export class ViewerManager {
     this.surfaces = [];
     this.storeyMaps.clear();
     this.categoryMaps.clear();
-    useStore.getState().set({ panelizeStatus: "idle", surfaceCount: 0 });
+    useStore.getState().set({ panelizeStatus: "idle", surfaceList: [] });
   }
 
   dispose() {
+    this.container.removeEventListener("pointerdown", this.onPointerDown);
+    this.container.removeEventListener("pointerup", this.onPointerUp);
     this.gizmo.dispose();
     this.components.dispose();
   }

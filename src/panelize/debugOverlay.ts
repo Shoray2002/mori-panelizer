@@ -30,6 +30,7 @@ export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group
       }),
     );
     fill.applyMatrix4(s.worldFromUV);
+    fill.userData.surfaceId = s.id;
     group.add(fill);
 
     for (const ring of [s.region.outer, ...s.region.holes]) {

@@ -25,8 +25,9 @@ interface ViewerState {
   categoryVisible: Record<string, boolean>;
 
   panelizeStatus: PanelizeStatus;
-  surfaceCount: number;
+  surfaceList: { id: string; klass: string }[];
   showSurfaceOverlay: boolean;
+  selectedSurfaceId: string | null;
 
   set: (partial: Partial<ViewerState>) => void;
   reset: () => void;
@@ -44,8 +45,9 @@ const initial: Omit<ViewerState, "set" | "reset"> = {
   categories: [],
   categoryVisible: {},
   panelizeStatus: "idle",
-  surfaceCount: 0,
+  surfaceList: [],
   showSurfaceOverlay: false,
+  selectedSurfaceId: null,
 };
 
 export const useStore = create<ViewerState>((set) => ({

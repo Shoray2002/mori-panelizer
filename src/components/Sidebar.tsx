@@ -1,10 +1,5 @@
-import { useRef, type ReactNode } from "react";
-import { useStore, type CameraProjection, type ViewMode } from "../store";
-
-const VIEW_MODES: { id: ViewMode; label: string }[] = [
-  { id: "normal", label: "Normal" },
-  { id: "solo", label: "Solo" },
-];
+import { useRef, useState, type ReactNode } from "react";
+import { useStore, type CameraProjection } from "../store";
 
 const PROJECTIONS: { id: CameraProjection; label: string }[] = [
   { id: "ortho", label: "Ortho" },
@@ -14,29 +9,31 @@ const PROJECTIONS: { id: CameraProjection; label: string }[] = [
 interface Props {
   onApplyView: () => void;
   onFile: (file: File) => void;
-  onZoomExtents: () => void;
   onExtractSurfaces: () => void;
   onToggleOverlay: (show: boolean) => void;
   onSetProjection: (projection: CameraProjection) => void;
   onSelectSurface: (id: string) => void;
+  onSelectStorey: (name: string) => void;
+  onShowAll: () => void;
 }
 
-/** Left control rail: file, view mode, storey isolation, filters. */
+/** Left control rail: file, projection, storey/surface navigation, filters. */
 export function Sidebar({
   onApplyView,
   onFile,
-  onZoomExtents,
   onExtractSurfaces,
   onToggleOverlay,
   onSetProjection,
   onSelectSurface,
+  onSelectStorey,
+  onShowAll,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const {
     status,
     fileName,
     stories,
-    viewMode,
     soloStory,
     categories,
     categoryVisible,
@@ -54,13 +51,6 @@ export function Sidebar({
   const update = (partial: Parameters<typeof set>[0]) => {
     set(partial);
     queueMicrotask(onApplyView);
-  };
-
-  const setMode = (mode: ViewMode) => {
-    // Default the solo target to the first storey if none chosen yet.
-    const solo =
-      mode === "solo" && !soloStory ? (stories[0]?.name ?? null) : soloStory;
-    update({ viewMode: mode, soloStory: solo });
   };
 
   const toggleCategory = (cat: string) =>
@@ -83,6 +73,12 @@ export function Sidebar({
     const next = !showSurfaceOverlay;
     set({ showSurfaceOverlay: next });
     onToggleOverlay(next);
+  };
+
+  // Clicking a level isolates it and expands its surfaces.
+  const selectStorey = (name: string) => {
+    setExpanded(name);
+    onSelectStorey(name);
   };
 
   return (
@@ -112,22 +108,7 @@ export function Sidebar({
 
       {ready && (
         <>
-          <Section title="View">
-            <div className="grid grid-cols-2 gap-1 rounded-md bg-neutral-900 p-1">
-              {VIEW_MODES.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setMode(m.id)}
-                  className={`rounded px-2 py-1 text-xs font-medium transition ${
-                    viewMode === m.id
-                      ? "bg-sky-500 text-white"
-                      : "text-neutral-400 hover:text-neutral-200"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
+          <Section title="Camera">
             <div className="grid grid-cols-2 gap-1 rounded-md bg-neutral-900 p-1">
               {PROJECTIONS.map((p) => (
                 <button
@@ -146,45 +127,22 @@ export function Sidebar({
           </Section>
 
           <button
-            onClick={onZoomExtents}
+            onClick={onShowAll}
             className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:bg-neutral-800"
           >
-            Zoom to fit
+            Show all
           </button>
 
-          {viewMode === "solo" && (
-            <Section title="Storey">
-              <div className="flex flex-col gap-1">
-                {stories.map((s) => (
-                  <button
-                    key={s.name}
-                    onClick={() => update({ soloStory: s.name })}
-                    className={`truncate rounded px-2 py-1.5 text-left text-xs transition ${
-                      soloStory === s.name
-                        ? "bg-neutral-800 text-neutral-100"
-                        : "text-neutral-400 hover:bg-neutral-900"
-                    }`}
-                  >
-                    {s.name}
-                  </button>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          <Section
-            title="Filters"
-            action={
-              anyFiltered && (
-                <button
-                  onClick={showAllCategories}
-                  className="text-[0.65rem] font-medium uppercase tracking-wider text-sky-400 hover:text-sky-300"
-                >
-                  clear
-                </button>
-              )
-            }
-          >
+          <Section title="Filters" action={
+            anyFiltered && (
+              <button
+                onClick={showAllCategories}
+                className="text-[0.65rem] font-medium uppercase tracking-wider text-sky-400 hover:text-sky-300"
+              >
+                clear
+              </button>
+            )
+          }>
             <div className="flex flex-col gap-1.5">
               {categories.map((cat) => (
                 <label
@@ -227,22 +185,6 @@ export function Sidebar({
                   />
                   Show overlay
                 </label>
-                <div className="flex flex-col gap-1">
-                  {surfaceList.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => onSelectSurface(s.id)}
-                      className={`flex justify-between rounded px-2 py-1 text-left text-xs transition ${
-                        selectedSurfaceId === s.id
-                          ? "bg-amber-500/20 text-amber-300"
-                          : "text-neutral-400 hover:bg-neutral-900"
-                      }`}
-                    >
-                      <span>{s.id}</span>
-                      <span className="text-neutral-600">{s.klass}</span>
-                    </button>
-                  ))}
-                </div>
               </>
             )}
             {panelizeStatus === "error" && (
@@ -250,9 +192,55 @@ export function Sidebar({
             )}
           </Section>
 
-          <p className="mt-auto text-xs text-neutral-600">
-            {stories.length} storey{stories.length === 1 ? "" : "s"}
-          </p>
+          <Section title="Storeys">
+            <div className="flex flex-col gap-1">
+              {stories.map((st) => {
+                const surfaces = surfaceList.filter((s) => s.storey === st.name);
+                const isOpen = expanded === st.name;
+                const active = soloStory === st.name && !selectedSurfaceId;
+                return (
+                  <div key={st.name} className="flex flex-col">
+                    <button
+                      onClick={() => selectStorey(st.name)}
+                      className={`flex items-center justify-between rounded px-2 py-1.5 text-left text-xs transition ${
+                        active
+                          ? "bg-neutral-800 text-neutral-100"
+                          : "text-neutral-300 hover:bg-neutral-900"
+                      }`}
+                    >
+                      <span>{st.name}</span>
+                      <span className="text-neutral-600">
+                        {isOpen ? "▾" : "▸"} {surfaces.length}
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="ml-2 flex flex-col gap-0.5 border-l border-neutral-800 pl-2">
+                        {surfaces.length === 0 && (
+                          <p className="px-2 py-1 text-xs text-neutral-600">
+                            No surfaces — extract first
+                          </p>
+                        )}
+                        {surfaces.map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => onSelectSurface(s.id)}
+                            className={`flex justify-between rounded px-2 py-1 text-left text-xs transition ${
+                              selectedSurfaceId === s.id
+                                ? "bg-amber-500/20 text-amber-300"
+                                : "text-neutral-400 hover:bg-neutral-900"
+                            }`}
+                          >
+                            <span>{s.id}</span>
+                            <span className="text-neutral-600">{s.klass}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
         </>
       )}
     </aside>

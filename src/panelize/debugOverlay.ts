@@ -31,6 +31,7 @@ export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group
     );
     fill.applyMatrix4(s.worldFromUV);
     fill.userData.surfaceId = s.id;
+    fill.userData.storey = s.storey;
     group.add(fill);
 
     for (const ring of [s.region.outer, ...s.region.holes]) {
@@ -41,6 +42,8 @@ export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group
         new THREE.LineBasicMaterial({ color }),
       );
       line.applyMatrix4(s.worldFromUV);
+      line.userData.surfaceId = s.id;
+      line.userData.storey = s.storey;
       group.add(line);
     }
   }

@@ -22,24 +22,26 @@ export default function App() {
 
   const handleFile = (file: File) => managerRef.current?.loadIfc(file);
   const applyView = () => managerRef.current?.applyView();
-  const zoomExtents = () => managerRef.current?.zoomExtents();
   const extractSurfaces = () => managerRef.current?.extractSurfaces();
   const toggleOverlay = (show: boolean) =>
     managerRef.current?.renderSurfaceOverlay(show);
   const setProjection = (projection: CameraProjection) =>
     managerRef.current?.setProjection(projection);
   const selectSurface = (id: string) => managerRef.current?.selectSurface(id);
+  const selectStorey = (name: string) => managerRef.current?.frameStorey(name);
+  const showAll = () => managerRef.current?.showAll();
 
   return (
     <div className="flex h-full w-full">
       <Sidebar
         onApplyView={applyView}
         onFile={handleFile}
-        onZoomExtents={zoomExtents}
         onExtractSurfaces={extractSurfaces}
         onToggleOverlay={toggleOverlay}
         onSetProjection={setProjection}
         onSelectSurface={selectSurface}
+        onSelectStorey={selectStorey}
+        onShowAll={showAll}
       />
       <div className="relative flex-1">
         <div ref={containerRef} className="absolute inset-0" />

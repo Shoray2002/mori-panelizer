@@ -1,6 +1,5 @@
 import { create } from "zustand";
 
-export type ViewMode = "normal" | "solo";
 export type Status = "idle" | "loading" | "ready" | "error";
 export type PanelizeStatus = "idle" | "working" | "ready" | "error";
 export type CameraProjection = "ortho" | "perspective";
@@ -17,7 +16,6 @@ interface ViewerState {
   progress: number;
 
   stories: Story[];
-  viewMode: ViewMode;
   soloStory: string | null;
   cameraProjection: CameraProjection;
 
@@ -25,7 +23,7 @@ interface ViewerState {
   categoryVisible: Record<string, boolean>;
 
   panelizeStatus: PanelizeStatus;
-  surfaceList: { id: string; klass: string }[];
+  surfaceList: { id: string; klass: string; storey: string | null }[];
   showSurfaceOverlay: boolean;
   selectedSurfaceId: string | null;
 
@@ -39,7 +37,6 @@ const initial: Omit<ViewerState, "set" | "reset"> = {
   error: null,
   progress: 0,
   stories: [],
-  viewMode: "normal",
   soloStory: null,
   cameraProjection: "ortho",
   categories: [],

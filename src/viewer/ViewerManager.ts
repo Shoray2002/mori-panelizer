@@ -160,8 +160,8 @@ export class ViewerManager {
         stories,
         categories,
         categoryVisible,
-        viewMode: "normal",
         soloStory: null,
+        selectedSurfaceId: null,
       });
       await this.applyView();
       await this.zoomExtents();
@@ -276,15 +276,19 @@ export class ViewerManager {
   }
 
   /**
-   * Reconcile the scene with the current store state: view mode, solo storey,
-   * and category visibility. Called after any UI change.
+   * Reconcile the scene with the current focus: a selected surface isolates its
+   * storey; failing that a solo storey isolates that storey; otherwise show all.
+   * Category filters and overlay visibility apply on top. Called after any change.
    */
   async applyView() {
-    const { viewMode, soloStory, categoryVisible } = useStore.getState();
+    const { soloStory, selectedSurfaceId, categoryVisible } = useStore.getState();
+    const focusStorey = selectedSurfaceId
+      ? (this.surfaces.find((s) => s.id === selectedSurfaceId)?.storey ?? null)
+      : soloStory;
 
-    // Base visibility: solo isolates one storey; otherwise show everything.
-    if (viewMode === "solo" && soloStory && this.storeyMaps.has(soloStory)) {
-      await this.hider.isolate(this.storeyMaps.get(soloStory)!);
+    // Geometry: isolate the focused storey, else show everything.
+    if (focusStorey && this.storeyMaps.has(focusStorey)) {
+      await this.hider.isolate(this.storeyMaps.get(focusStorey)!);
     } else {
       await this.hider.set(true);
     }
@@ -294,7 +298,21 @@ export class ViewerManager {
       if (!categoryVisible[cat]) await this.hider.set(false, map);
     }
 
+    this.reconcileOverlay(selectedSurfaceId, focusStorey);
     this.fragments.core.update(true);
+  }
+
+  /** Show only the focused surface's overlay (or the focused storey's, or all). */
+  private reconcileOverlay(selectedSurfaceId: string | null, focusStorey: string | null) {
+    const group = this.world.scene.three.getObjectByName(OVERLAY_GROUP);
+    if (!group) return;
+    for (const o of group.children) {
+      o.visible = selectedSurfaceId
+        ? o.userData.surfaceId === selectedSurfaceId
+        : focusStorey
+          ? o.userData.storey === focusStorey
+          : true;
+    }
   }
 
   /** Merge the slab + wall items into a single ModelIdMap for framing. */
@@ -327,21 +345,29 @@ export class ViewerManager {
     this.gizmo.update();
   }
 
-  /** Frame the building from a 3/4 iso angle and cap how far the user can dolly out. */
-  async zoomExtents() {
-    const box = await this.getContentBox();
-    if (!box) return;
-
+  /**
+   * Frame a box along `dir`, then fit tightly. Dolly limits are derived from
+   * `clampDiagonal` (the building size) so framing a small surface still lets the
+   * user zoom back out to the whole model.
+   */
+  private async frameBox(
+    box: THREE.Box3,
+    dir: THREE.Vector3,
+    animate: boolean,
+    clampDiagonal?: number,
+  ) {
     const controls = this.world.camera.controls;
     const center = box.getCenter(new THREE.Vector3());
     const diagonal = box.getSize(new THREE.Vector3()).length();
+    const clamp = clampDiagonal ?? diagonal;
 
-    // Cap dolly-out to ~2x the model size so the user can't fly off to infinity.
-    controls.minDistance = diagonal * 0.05;
-    controls.maxDistance = diagonal * 2;
+    controls.minDistance = clamp * 0.05;
+    controls.maxDistance = clamp * 2;
 
-    // Orient to a front-top-right 3/4 view, then dolly in to frame the box tightly.
-    const dir = new THREE.Vector3(1, 0.7, 1).normalize();
+    // Snap the orientation instantly, then animate the fit. Fit by sphere, not
+    // box: fitToBox rounds the camera to the nearest axis (snapping iso → side);
+    // fitToSphere only dollies/zooms, preserving the orientation we just set.
+    // The 1.1 factor leaves ~10% padding around the content.
     await controls.setLookAt(
       center.x + dir.x * diagonal,
       center.y + dir.y * diagonal,
@@ -351,7 +377,56 @@ export class ViewerManager {
       center.z,
       false,
     );
-    await controls.fitToBox(box, true);
+    const sphere = new THREE.Sphere(center, (diagonal / 2) * 1.1);
+    await controls.fitToSphere(sphere, animate);
+  }
+
+  /** Frame the whole building from a 3/4 iso angle. */
+  async zoomExtents() {
+    const box = await this.getContentBox();
+    if (!box) return;
+    await this.frameBox(box, new THREE.Vector3(1, 0.7, 1).normalize(), true);
+  }
+
+  /** Diagonal of the building content box, for dolly clamping. */
+  private async contentDiagonal(): Promise<number | undefined> {
+    const box = await this.getContentBox();
+    return box ? box.getSize(new THREE.Vector3()).length() : undefined;
+  }
+
+  /** Isolate a storey and frame it at the 3/4 angle. */
+  async frameStorey(name: string) {
+    useStore.getState().set({ soloStory: name, selectedSurfaceId: null });
+    this.highlightFill(null);
+    await this.applyView();
+
+    const map = this.storeyMaps.get(name);
+    if (!map) return;
+    const box = new THREE.Box3();
+    for (const b of await this.boxesForMap(map)) if (!b.isEmpty()) box.union(b);
+    if (box.isEmpty()) return;
+    await this.frameBox(box, new THREE.Vector3(1, 0.7, 1).normalize(), true);
+  }
+
+  /**
+   * Flatten the camera onto a surface: frame its world box looking straight down
+   * its normal (top-down for floors). Forces ortho — the clean panelization view.
+   */
+  private async frameSurface(surface: PanelizableSurface) {
+    const box = new THREE.Box3();
+    for (const p of surface.region.outer) {
+      box.expandByPoint(
+        new THREE.Vector3(p.x, p.y, 0).applyMatrix4(surface.worldFromUV),
+      );
+    }
+    if (box.isEmpty()) return;
+
+    const dir = surface.plane.normal.clone();
+    if (dir.y < 0) dir.negate(); // view floors/ceilings from above
+
+    this.setProjection("ortho");
+    useStore.getState().set({ cameraProjection: "ortho" });
+    await this.frameBox(box, dir, true, await this.contentDiagonal());
   }
 
   /**
@@ -370,7 +445,11 @@ export class ViewerManager {
       });
       useStore.getState().set({
         panelizeStatus: "ready",
-        surfaceList: this.surfaces.map((s) => ({ id: s.id, klass: s.klass })),
+        surfaceList: this.surfaces.map((s) => ({
+          id: s.id,
+          klass: s.klass,
+          storey: s.storey,
+        })),
         showSurfaceOverlay: true,
       });
       this.renderSurfaceOverlay(true);
@@ -389,7 +468,7 @@ export class ViewerManager {
     if (show && this.surfaces.length) {
       scene.add(buildSurfaceOverlay(this.surfaces));
     }
-    this.fragments.core.update(true);
+    void this.applyView(); // new group must respect the current focus
   }
 
   private onPointerDown = (e: PointerEvent) => {
@@ -404,7 +483,7 @@ export class ViewerManager {
     this.pickSurface(e);
   };
 
-  /** Raycast the overlay; highlight the hit surface (or clear on a miss). */
+  /** Raycast the overlay; focus the hit surface. A miss leaves focus untouched. */
   private pickSurface(e: PointerEvent) {
     const group = this.world.scene.three.getObjectByName(OVERLAY_GROUP);
     if (!group) return;
@@ -415,20 +494,35 @@ export class ViewerManager {
       -((e.clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.raycaster.setFromCamera(ndc, this.world.camera.three);
-    const fills = group.children.filter((o) => (o as THREE.Mesh).isMesh);
+    const fills = group.children.filter((o) => (o as THREE.Mesh).isMesh && o.visible);
     const hit = this.raycaster.intersectObjects(fills, false)[0];
-    this.highlightFill((hit?.object as typeof this.selectedFill) ?? null);
+    const id = hit?.object.userData.surfaceId as string | undefined;
+    if (id) void this.selectSurface(id);
   }
 
-  /** Select a surface by id from the sidebar list (shows the overlay if hidden). */
-  selectSurface(id: string) {
+  /** Focus a surface: isolate its storey + overlay, highlight, and flatten onto it. */
+  async selectSurface(id: string) {
     if (!this.world.scene.three.getObjectByName(OVERLAY_GROUP)) {
       useStore.getState().set({ showSurfaceOverlay: true });
       this.renderSurfaceOverlay(true);
     }
+    const surface = this.surfaces.find((s) => s.id === id);
+    if (!surface) return;
+
     const group = this.world.scene.three.getObjectByName(OVERLAY_GROUP);
     const mesh = group?.children.find((o) => o.userData.surfaceId === id);
+    useStore.getState().set({ selectedSurfaceId: id, soloStory: surface.storey });
     this.highlightFill((mesh as typeof this.selectedFill) ?? null);
+    await this.applyView();
+    await this.frameSurface(surface);
+  }
+
+  /** Clear all focus: whole building, all overlays, zoom to extents. */
+  async showAll() {
+    useStore.getState().set({ selectedSurfaceId: null, soloStory: null });
+    this.highlightFill(null);
+    await this.applyView();
+    await this.zoomExtents();
   }
 
   /** Recolor the given fill as selected, restoring the previously selected one. */

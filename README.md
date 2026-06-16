@@ -7,6 +7,8 @@ the grid-layout stage.
 Built on [That Open Engine](https://github.com/ThatOpen/engine_components) v3,
 React 18, Three.js, Zustand, and Tailwind 4.
 
+Deployed at https://mori-panelizer.surge.sh/
+
 ## Requirements
 
 - Node 18+ and npm

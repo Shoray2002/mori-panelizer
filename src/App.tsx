@@ -23,8 +23,6 @@ export default function App() {
   const handleFile = (file: File) => managerRef.current?.loadIfc(file);
   const applyView = () => managerRef.current?.applyView();
   const extractSurfaces = () => managerRef.current?.extractSurfaces();
-  const toggleOverlay = (show: boolean) =>
-    managerRef.current?.renderSurfaceOverlay(show);
   const setProjection = (projection: CameraProjection) =>
     managerRef.current?.setProjection(projection);
   const selectSurface = (id: string) => managerRef.current?.selectSurface(id);
@@ -37,7 +35,6 @@ export default function App() {
         onApplyView={applyView}
         onFile={handleFile}
         onExtractSurfaces={extractSurfaces}
-        onToggleOverlay={toggleOverlay}
         onSetProjection={setProjection}
         onSelectSurface={selectSurface}
         onSelectStorey={selectStorey}

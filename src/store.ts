@@ -24,7 +24,8 @@ interface ViewerState {
 
   panelizeStatus: PanelizeStatus;
   surfaceList: { id: string; klass: string; storey: string | null }[];
-  showSurfaceOverlay: boolean;
+  showHorizontal: boolean;
+  showVertical: boolean;
   selectedSurfaceId: string | null;
 
   set: (partial: Partial<ViewerState>) => void;
@@ -43,7 +44,8 @@ const initial: Omit<ViewerState, "set" | "reset"> = {
   categoryVisible: {},
   panelizeStatus: "idle",
   surfaceList: [],
-  showSurfaceOverlay: false,
+  showHorizontal: false,
+  showVertical: false,
   selectedSurfaceId: null,
 };
 

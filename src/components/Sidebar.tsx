@@ -10,19 +10,23 @@ interface Props {
   onApplyView: () => void;
   onFile: (file: File) => void;
   onExtractSurfaces: () => void;
-  onToggleOverlay: (show: boolean) => void;
   onSetProjection: (projection: CameraProjection) => void;
   onSelectSurface: (id: string) => void;
   onSelectStorey: (name: string) => void;
   onShowAll: () => void;
 }
 
+/** Surface-type groups: horizontal (slab/roof, blue) vs vertical (wall, green). */
+const SURFACE_TYPES = [
+  { key: "showHorizontal", label: "Horizontal", dot: "bg-blue-500", member: (k: string) => k !== "wall" },
+  { key: "showVertical", label: "Vertical", dot: "bg-green-500", member: (k: string) => k === "wall" },
+] as const;
+
 /** Left control rail: file, projection, storey/surface navigation, filters. */
 export function Sidebar({
   onApplyView,
   onFile,
   onExtractSurfaces,
-  onToggleOverlay,
   onSetProjection,
   onSelectSurface,
   onSelectStorey,
@@ -30,6 +34,7 @@ export function Sidebar({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [openTypes, setOpenTypes] = useState<Set<string>>(new Set());
   const [dark, setDark] = useState(() =>
     document.documentElement.classList.contains("dark"),
   );
@@ -43,10 +48,12 @@ export function Sidebar({
     cameraProjection,
     panelizeStatus,
     surfaceList,
-    showSurfaceOverlay,
+    showHorizontal,
+    showVertical,
     selectedSurfaceId,
     set,
   } = useStore();
+  const typeOn = { showHorizontal, showVertical };
 
   const ready = status === "ready";
 
@@ -77,11 +84,15 @@ export function Sidebar({
     onSetProjection(projection);
   };
 
-  const toggleOverlay = () => {
-    const next = !showSurfaceOverlay;
-    set({ showSurfaceOverlay: next });
-    onToggleOverlay(next);
-  };
+  const toggleType = (key: "showHorizontal" | "showVertical") =>
+    update({ [key]: !typeOn[key] });
+
+  const toggleTypeOpen = (key: string) =>
+    setOpenTypes((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
 
   const toggleTheme = () => {
     const next = !dark;
@@ -203,7 +214,7 @@ export function Sidebar({
             >
               {panelizeStatus === "working"
                 ? "Extracting…"
-                : "Extract slab surfaces"}
+                : "Extract surfaces"}
             </button>
             {panelizeStatus === "ready" && (
               <>
@@ -211,15 +222,23 @@ export function Sidebar({
                   {surfaceList.length} surface
                   {surfaceList.length === 1 ? "" : "s"} found
                 </p>
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300">
-                  <input
-                    type="checkbox"
-                    checked={showSurfaceOverlay}
-                    onChange={toggleOverlay}
-                    className="accent-sky-500"
-                  />
-                  Show overlay
-                </label>
+                <div className="flex flex-col gap-1.5">
+                  {SURFACE_TYPES.map((t) => (
+                    <label
+                      key={t.key}
+                      className="flex cursor-pointer items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={typeOn[t.key]}
+                        onChange={() => toggleType(t.key)}
+                        className="accent-sky-500"
+                      />
+                      <span className={`h-2 w-2 rounded-full ${t.dot}`} />
+                      {t.label}
+                    </label>
+                  ))}
+                </div>
               </>
             )}
             {panelizeStatus === "error" && (
@@ -253,28 +272,68 @@ export function Sidebar({
                       </span>
                     </button>
                     {isOpen && (
-                      <div className="ml-2 flex flex-col gap-0.5 border-l border-neutral-200 pl-2 dark:border-neutral-800">
+                      <div className="ml-2 flex flex-col gap-1 border-l border-neutral-200 pl-2 dark:border-neutral-800">
                         {surfaces.length === 0 && (
                           <p className="px-2 py-1 text-xs text-neutral-400 dark:text-neutral-600">
                             No surfaces — extract first
                           </p>
                         )}
-                        {surfaces.map((s) => (
-                          <button
-                            key={s.id}
-                            onClick={() => onSelectSurface(s.id)}
-                            className={`flex justify-between rounded px-2 py-1 text-left text-xs transition ${
-                              selectedSurfaceId === s.id
-                                ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
-                                : "text-neutral-600 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-900"
-                            }`}
-                          >
-                            <span>{s.id}</span>
-                            <span className="text-neutral-400 dark:text-neutral-600">
-                              {s.klass}
-                            </span>
-                          </button>
-                        ))}
+                        {surfaces.length > 0 &&
+                          SURFACE_TYPES.map((t) => {
+                            const typeSurfaces = surfaces.filter((s) =>
+                              t.member(s.klass),
+                            );
+                            const on = typeOn[t.key];
+                            const tkey = `${st.name}|${t.key}`;
+                            const tOpen = openTypes.has(tkey) && on;
+                            return (
+                              <div
+                                key={t.key}
+                                className={on ? "" : "opacity-40"}
+                              >
+                                <button
+                                  disabled={!on}
+                                  onClick={() => toggleTypeOpen(tkey)}
+                                  className="flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs text-neutral-600 hover:bg-neutral-200 disabled:cursor-not-allowed disabled:hover:bg-transparent dark:text-neutral-400 dark:hover:bg-neutral-900"
+                                >
+                                  <span className="flex items-center gap-1.5">
+                                    <span
+                                      className={`h-2 w-2 rounded-full ${t.dot}`}
+                                    />
+                                    {t.label}
+                                  </span>
+                                  <span className="text-neutral-400 dark:text-neutral-600">
+                                    {tOpen ? "▾" : "▸"} {typeSurfaces.length}
+                                  </span>
+                                </button>
+                                {tOpen && (
+                                  <div className="ml-2 flex flex-col gap-0.5">
+                                    {typeSurfaces.length === 0 && (
+                                      <p className="px-2 py-1 text-xs text-neutral-400 dark:text-neutral-600">
+                                        None
+                                      </p>
+                                    )}
+                                    {typeSurfaces.map((s) => (
+                                      <button
+                                        key={s.id}
+                                        onClick={() => onSelectSurface(s.id)}
+                                        className={`flex justify-between rounded px-2 py-1 text-left text-xs transition ${
+                                          selectedSurfaceId === s.id
+                                            ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                                            : "text-neutral-600 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-900"
+                                        }`}
+                                      >
+                                        <span>{s.id}</span>
+                                        <span className="text-neutral-400 dark:text-neutral-600">
+                                          {s.klass}
+                                        </span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                       </div>
                     )}
                   </div>

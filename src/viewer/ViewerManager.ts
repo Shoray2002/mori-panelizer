@@ -7,7 +7,7 @@ import {
   buildSurfaceOverlay,
   clearSurfaceOverlay,
 } from "../panelize/debugOverlay";
-import { OVERLAY_COLOR, OVERLAY_GROUP, OVERLAY_OPACITY } from "../panelize/constants";
+import { OVERLAY_GROUP, OVERLAY_OPACITY, isVertical } from "../panelize/constants";
 import { type ModelIdMap, mergeInto } from "../modelIdMap";
 import type { CameraProjection } from "../store";
 import { Gizmo } from "./Gizmo";
@@ -302,16 +302,22 @@ export class ViewerManager {
     this.fragments.core.update(true);
   }
 
-  /** Show only the focused surface's overlay (or the focused storey's, or all). */
+  /**
+   * Overlay visibility = type toggle (horizontal/vertical) ∧ focus (selected
+   * surface, else focused storey, else all). A selected surface always shows,
+   * regardless of its type toggle — selection is explicit intent.
+   */
   private reconcileOverlay(selectedSurfaceId: string | null, focusStorey: string | null) {
+    const { showHorizontal, showVertical } = useStore.getState();
     const group = this.world.scene.three.getObjectByName(OVERLAY_GROUP);
     if (!group) return;
     for (const o of group.children) {
-      o.visible = selectedSurfaceId
-        ? o.userData.surfaceId === selectedSurfaceId
-        : focusStorey
-          ? o.userData.storey === focusStorey
-          : true;
+      if (selectedSurfaceId) {
+        o.visible = o.userData.surfaceId === selectedSurfaceId;
+        continue;
+      }
+      const typeOn = isVertical(o.userData.klass as string) ? showVertical : showHorizontal;
+      o.visible = typeOn && (focusStorey ? o.userData.storey === focusStorey : true);
     }
   }
 
@@ -455,24 +461,23 @@ export class ViewerManager {
           klass: s.klass,
           storey: s.storey,
         })),
-        showSurfaceOverlay: true,
+        showHorizontal: true,
+        showVertical: true,
       });
-      this.renderSurfaceOverlay(true);
+      this.renderSurfaceOverlay();
     } catch (err) {
       console.error(err);
       useStore.getState().set({ panelizeStatus: "error" });
     }
   }
 
-  /** Add or remove the slab-surface overlay from the scene. */
-  renderSurfaceOverlay(show: boolean) {
+  /** (Re)build the surface overlay; per-type visibility is handled in applyView. */
+  renderSurfaceOverlay() {
     const scene = this.world.scene.three;
     clearSurfaceOverlay(scene);
     this.selectedFill = null; // overlay rebuilt — old mesh refs are stale
     useStore.getState().set({ selectedSurfaceId: null });
-    if (show && this.surfaces.length) {
-      scene.add(buildSurfaceOverlay(this.surfaces));
-    }
+    if (this.surfaces.length) scene.add(buildSurfaceOverlay(this.surfaces));
     void this.applyView(); // new group must respect the current focus
   }
 
@@ -508,8 +513,8 @@ export class ViewerManager {
   /** Focus a surface: isolate its storey + overlay, highlight, and flatten onto it. */
   async selectSurface(id: string) {
     if (!this.world.scene.three.getObjectByName(OVERLAY_GROUP)) {
-      useStore.getState().set({ showSurfaceOverlay: true });
-      this.renderSurfaceOverlay(true);
+      useStore.getState().set({ showHorizontal: true, showVertical: true });
+      this.renderSurfaceOverlay();
     }
     const surface = this.surfaces.find((s) => s.id === id);
     if (!surface) return;
@@ -534,7 +539,7 @@ export class ViewerManager {
   private highlightFill(fill: typeof this.selectedFill) {
     if (this.selectedFill) {
       const m = this.selectedFill.material;
-      m.color.set(OVERLAY_COLOR);
+      m.color.set(this.selectedFill.userData.baseColor as number);
       m.opacity = OVERLAY_OPACITY;
       m.transparent = true;
       m.depthWrite = false;

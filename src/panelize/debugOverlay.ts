@@ -1,6 +1,12 @@
 import * as THREE from "three";
 import type { PanelizableSurface, Vec2 } from "./types";
-import { OVERLAY_COLOR, OVERLAY_GROUP, OVERLAY_OPACITY } from "./constants";
+import {
+  OVERLAY_COLOR_H,
+  OVERLAY_COLOR_V,
+  OVERLAY_GROUP,
+  OVERLAY_OPACITY,
+  isVertical,
+} from "./constants";
 
 const toPath = (ring: Vec2[]): THREE.Vector2[] =>
   ring.map((p) => new THREE.Vector2(p.x, p.y));
@@ -18,7 +24,7 @@ export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group
     const shape = new THREE.Shape(toPath(s.region.outer));
     for (const hole of s.region.holes) shape.holes.push(new THREE.Path(toPath(hole)));
 
-    const color = OVERLAY_COLOR;
+    const color = isVertical(s.klass) ? OVERLAY_COLOR_V : OVERLAY_COLOR_H;
     const fill = new THREE.Mesh(
       new THREE.ShapeGeometry(shape),
       new THREE.MeshBasicMaterial({
@@ -35,6 +41,8 @@ export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group
     fill.applyMatrix4(s.worldFromUV);
     fill.userData.surfaceId = s.id;
     fill.userData.storey = s.storey;
+    fill.userData.klass = s.klass;
+    fill.userData.baseColor = color;
     group.add(fill);
 
     for (const ring of [s.region.outer, ...s.region.holes]) {
@@ -52,6 +60,7 @@ export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group
       line.applyMatrix4(s.worldFromUV);
       line.userData.surfaceId = s.id;
       line.userData.storey = s.storey;
+      line.userData.klass = s.klass;
       group.add(line);
     }
   }

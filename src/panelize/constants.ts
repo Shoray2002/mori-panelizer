@@ -52,5 +52,8 @@ export const CONV_M: Record<string, number> = {
 
 export const OVERLAY_GROUP = "panelize-overlay";
 export const OVERLAY_OPACITY = 0.25;
-/** Single overlay color for all surfaces (no per-class coding). */
-export const OVERLAY_COLOR = 0x3b82f6;
+/** Overlay colors by orientation: horizontal (slab/roof) blue, vertical (wall) green. */
+export const OVERLAY_COLOR_H = 0x3b82f6;
+export const OVERLAY_COLOR_V = 0x22c55e;
+/** Vertical surfaces are walls; everything else is horizontal. */
+export const isVertical = (klass: string) => klass === "wall";

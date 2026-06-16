@@ -30,6 +30,9 @@ export function Sidebar({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [dark, setDark] = useState(() =>
+    document.documentElement.classList.contains("dark"),
+  );
   const {
     status,
     fileName,
@@ -64,6 +67,11 @@ export function Sidebar({
       categoryVisible: Object.fromEntries(categories.map((c) => [c, true])),
     });
 
+  const hideAllCategories = () =>
+    update({
+      categoryVisible: Object.fromEntries(categories.map((c) => [c, false])),
+    });
+
   const setProjection = (projection: CameraProjection) => {
     set({ cameraProjection: projection });
     onSetProjection(projection);
@@ -75,6 +83,13 @@ export function Sidebar({
     onToggleOverlay(next);
   };
 
+  const toggleTheme = () => {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+  };
+
   // Clicking a level isolates it and expands its surfaces.
   const selectStorey = (name: string) => {
     setExpanded(name);
@@ -82,11 +97,20 @@ export function Sidebar({
   };
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-5 overflow-y-auto border-r border-neutral-800 bg-neutral-950 p-4">
+    <aside className="flex w-64 shrink-0 flex-col gap-5 overflow-y-auto border-r border-neutral-200 bg-neutral-100 p-4 dark:border-neutral-800 dark:bg-neutral-950">
       <div>
-        <h1 className="text-sm font-semibold text-neutral-100">
-          Mori Panelizer
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            Mori Panelizer
+          </h1>
+          <button
+            onClick={toggleTheme}
+            title="Toggle theme"
+            className="rounded p-1 text-sm text-neutral-600 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-800"
+          >
+            {dark ? "☀️" : "🌙"}
+          </button>
+        </div>
         <p className="mt-0.5 truncate text-xs text-neutral-500">
           {fileName ?? "No file loaded"}
         </p>
@@ -101,7 +125,7 @@ export function Sidebar({
       />
       <button
         onClick={() => inputRef.current?.click()}
-        className="rounded-md bg-neutral-800 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-neutral-700"
+        className="rounded-md bg-neutral-200 px-3 py-1.5 text-xs font-medium text-neutral-800 hover:bg-neutral-300 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700"
       >
         {ready ? "Load another IFC" : "Open IFC"}
       </button>
@@ -109,7 +133,7 @@ export function Sidebar({
       {ready && (
         <>
           <Section title="Camera">
-            <div className="grid grid-cols-2 gap-1 rounded-md bg-neutral-900 p-1">
+            <div className="grid grid-cols-2 gap-1 rounded-md bg-neutral-200 p-1 dark:bg-neutral-900">
               {PROJECTIONS.map((p) => (
                 <button
                   key={p.id}
@@ -117,7 +141,7 @@ export function Sidebar({
                   className={`rounded px-2 py-1 text-xs font-medium transition ${
                     cameraProjection === p.id
                       ? "bg-sky-500 text-white"
-                      : "text-neutral-400 hover:text-neutral-200"
+                      : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200"
                   }`}
                 >
                   {p.label}
@@ -128,26 +152,36 @@ export function Sidebar({
 
           <button
             onClick={onShowAll}
-            className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-300 hover:bg-neutral-800"
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-neutral-200 dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
           >
             Show all
           </button>
 
-          <Section title="Filters" action={
-            anyFiltered && (
-              <button
-                onClick={showAllCategories}
-                className="text-[0.65rem] font-medium uppercase tracking-wider text-sky-400 hover:text-sky-300"
-              >
-                clear
-              </button>
-            )
-          }>
+          <Section
+            title="Filters"
+            action={
+              anyFiltered ? (
+                <button
+                  onClick={showAllCategories}
+                  className="text-[0.65rem] font-medium uppercase tracking-wider text-sky-500 hover:text-sky-400"
+                >
+                  Show all
+                </button>
+              ) : (
+                <button
+                  onClick={hideAllCategories}
+                  className="text-[0.65rem] font-medium uppercase tracking-wider text-sky-500 hover:text-sky-400"
+                >
+                  Hide all
+                </button>
+              )
+            }
+          >
             <div className="flex flex-col gap-1.5">
               {categories.map((cat) => (
                 <label
                   key={cat}
-                  className="flex cursor-pointer items-center gap-2 text-xs text-neutral-300"
+                  className="flex cursor-pointer items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300"
                 >
                   <input
                     type="checkbox"
@@ -174,9 +208,10 @@ export function Sidebar({
             {panelizeStatus === "ready" && (
               <>
                 <p className="text-xs text-neutral-500">
-                  {surfaceList.length} surface{surfaceList.length === 1 ? "" : "s"} found
+                  {surfaceList.length} surface
+                  {surfaceList.length === 1 ? "" : "s"} found
                 </p>
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-300">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300">
                   <input
                     type="checkbox"
                     checked={showSurfaceOverlay}
@@ -188,14 +223,18 @@ export function Sidebar({
               </>
             )}
             {panelizeStatus === "error" && (
-              <p className="text-xs text-red-400">Extraction failed — see console</p>
+              <p className="text-xs text-red-500 dark:text-red-400">
+                Extraction failed — see console
+              </p>
             )}
           </Section>
 
           <Section title="Storeys">
             <div className="flex flex-col gap-1">
               {stories.map((st) => {
-                const surfaces = surfaceList.filter((s) => s.storey === st.name);
+                const surfaces = surfaceList.filter(
+                  (s) => s.storey === st.name,
+                );
                 const isOpen = expanded === st.name;
                 const active = soloStory === st.name && !selectedSurfaceId;
                 return (
@@ -204,19 +243,19 @@ export function Sidebar({
                       onClick={() => selectStorey(st.name)}
                       className={`flex items-center justify-between rounded px-2 py-1.5 text-left text-xs transition ${
                         active
-                          ? "bg-neutral-800 text-neutral-100"
-                          : "text-neutral-300 hover:bg-neutral-900"
+                          ? "bg-neutral-200 text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100"
+                          : "text-neutral-700 hover:bg-neutral-200 dark:text-neutral-300 dark:hover:bg-neutral-900"
                       }`}
                     >
                       <span>{st.name}</span>
-                      <span className="text-neutral-600">
+                      <span className="text-neutral-400 dark:text-neutral-600">
                         {isOpen ? "▾" : "▸"} {surfaces.length}
                       </span>
                     </button>
                     {isOpen && (
-                      <div className="ml-2 flex flex-col gap-0.5 border-l border-neutral-800 pl-2">
+                      <div className="ml-2 flex flex-col gap-0.5 border-l border-neutral-200 pl-2 dark:border-neutral-800">
                         {surfaces.length === 0 && (
-                          <p className="px-2 py-1 text-xs text-neutral-600">
+                          <p className="px-2 py-1 text-xs text-neutral-400 dark:text-neutral-600">
                             No surfaces — extract first
                           </p>
                         )}
@@ -226,12 +265,14 @@ export function Sidebar({
                             onClick={() => onSelectSurface(s.id)}
                             className={`flex justify-between rounded px-2 py-1 text-left text-xs transition ${
                               selectedSurfaceId === s.id
-                                ? "bg-amber-500/20 text-amber-300"
-                                : "text-neutral-400 hover:bg-neutral-900"
+                                ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                                : "text-neutral-600 hover:bg-neutral-200 dark:text-neutral-400 dark:hover:bg-neutral-900"
                             }`}
                           >
                             <span>{s.id}</span>
-                            <span className="text-neutral-600">{s.klass}</span>
+                            <span className="text-neutral-400 dark:text-neutral-600">
+                              {s.klass}
+                            </span>
                           </button>
                         ))}
                       </div>

@@ -27,6 +27,9 @@ export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group
         opacity: OVERLAY_OPACITY,
         side: THREE.DoubleSide,
         depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       }),
     );
     fill.applyMatrix4(s.worldFromUV);
@@ -39,7 +42,12 @@ export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group
       pts.push(pts[0].clone());
       const line = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({ color }),
+        new THREE.LineBasicMaterial({
+          color,
+          polygonOffset: true,
+          polygonOffsetFactor: -3,
+          polygonOffsetUnits: -3,
+        }),
       );
       line.applyMatrix4(s.worldFromUV);
       line.userData.surfaceId = s.id;

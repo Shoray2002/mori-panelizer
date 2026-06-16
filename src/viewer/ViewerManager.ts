@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 import { useStore } from "../store";
-import { extractSlabSurfaces } from "../panelize/surfaces";
+import { extractSlabSurfaces, extractWallSurfaces } from "../panelize/surfaces";
 import type { PanelizableSurface } from "../panelize/types";
 import {
   buildSurfaceOverlay,
@@ -437,12 +437,17 @@ export class ViewerManager {
   async extractSurfaces() {
     useStore.getState().set({ panelizeStatus: "working" });
     try {
-      this.surfaces = await extractSlabSurfaces({
+      const ctx = {
         fragments: this.fragments,
         categoryMaps: this.categoryMaps,
         storeyMaps: this.storeyMaps,
-        boxesForMap: (map) => this.boxesForMap(map),
-      });
+        boxesForMap: (map: ModelIdMap) => this.boxesForMap(map),
+      };
+      const [slabs, walls] = await Promise.all([
+        extractSlabSurfaces(ctx),
+        extractWallSurfaces(ctx),
+      ]);
+      this.surfaces = [...slabs, ...walls];
       useStore.getState().set({
         panelizeStatus: "ready",
         surfaceList: this.surfaces.map((s) => ({

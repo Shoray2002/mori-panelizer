@@ -2,8 +2,9 @@ import * as THREE from "three";
 
 // --- Surface selection ------------------------------------------------------
 
-/** Categories that contribute horizontal panelizable surfaces (Milestone 1). */
+/** Categories that contribute panelizable surfaces. */
 export const SLAB_CATEGORY = /slab|roof/i;
+export const WALL_CATEGORY = /^wall/i;
 
 // --- Plate fitting (model units) --------------------------------------------
 

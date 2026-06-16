@@ -25,6 +25,7 @@ import {
   OFFSET_Q,
   PREFIX_M,
   SLAB_CATEGORY,
+  WALL_CATEGORY,
 } from "./constants";
 
 /** Vertical [min, max] Y extent of a storey. */
@@ -37,17 +38,51 @@ export interface PanelizeContext {
   boxesForMap: (map: ModelIdMap) => Promise<THREE.Box3[]>;
 }
 
+/** Per-extraction config: which categories, id prefix, and how to classify. */
+interface PlanarConfig {
+  pattern: RegExp;
+  idPrefix: string;
+  fallbackKind: SurfaceClass;
+  classify?: (
+    model: FragmentsModel,
+    ids: number[],
+  ) => Promise<Map<number, SurfaceClass>>;
+}
+
 /**
  * Extract floor/ceiling slab surfaces: fit each slab element to a flat plate,
  * merge coplanar plates into whole-floor regions, and classify each by storey.
  */
-export async function extractSlabSurfaces(
+export function extractSlabSurfaces(
   ctx: PanelizeContext,
 ): Promise<PanelizableSurface[]> {
-  const slabMap = mergeCategories(ctx.categoryMaps, SLAB_CATEGORY);
-  if (!Object.keys(slabMap).length) return [];
+  return extractPlanarSurfaces(ctx, {
+    pattern: SLAB_CATEGORY,
+    idPrefix: "slab",
+    fallbackKind: "floor",
+    classify: slabKinds,
+  });
+}
 
-  const { plates, kinds } = await fitPlates(ctx.fragments, slabMap);
+export function extractWallSurfaces(
+  ctx: PanelizeContext,
+): Promise<PanelizableSurface[]> {
+  return extractPlanarSurfaces(ctx, {
+    pattern: WALL_CATEGORY,
+    idPrefix: "wall",
+    fallbackKind: "wall",
+  });
+}
+
+/** Shared plate-fit → coplanar-merge → storey-classify pipeline. */
+async function extractPlanarSurfaces(
+  ctx: PanelizeContext,
+  cfg: PlanarConfig,
+): Promise<PanelizableSurface[]> {
+  const map = mergeCategories(ctx.categoryMaps, cfg.pattern);
+  if (!Object.keys(map).length) return [];
+
+  const { plates, kinds } = await fitPlates(ctx.fragments, map, cfg.classify);
   if (!plates.length) return [];
 
   const firstModel = [...ctx.fragments.list.values()][0];
@@ -59,7 +94,15 @@ export async function extractSlabSurfaces(
   const surfaces: PanelizableSurface[] = [];
   let counter = 0;
   for (const group of groups) {
-    for (const surface of buildSurfaces(group, kinds, bands, feetPerUnit, counter)) {
+    for (const surface of buildSurfaces(
+      group,
+      kinds,
+      bands,
+      feetPerUnit,
+      counter,
+      cfg.idPrefix,
+      cfg.fallbackKind,
+    )) {
       surfaces.push(surface);
       counter++;
     }
@@ -138,12 +181,16 @@ function mergeCategories(
 /** Pull geometry for every slab element, fit each to a plate, and read its type. */
 async function fitPlates(
   fragments: OBC.FragmentsManager,
-  slabMap: ModelIdMap,
+  elementMap: ModelIdMap,
+  classify?: (
+    model: FragmentsModel,
+    ids: number[],
+  ) => Promise<Map<number, SurfaceClass>>,
 ): Promise<{ plates: PlateFit[]; kinds: Map<number, SurfaceClass> }> {
   const plates: PlateFit[] = [];
   const kinds = new Map<number, SurfaceClass>();
   for (const [, model] of fragments.list) {
-    const ids = [...(slabMap[model.modelId] ?? [])];
+    const ids = [...(elementMap[model.modelId] ?? [])];
     if (!ids.length) continue;
 
     const perElement = await model.getItemsGeometry(ids);
@@ -155,7 +202,7 @@ async function fitPlates(
       if (fit) plates.push(fit);
     });
 
-    for (const [id, kind] of await slabKinds(model, ids)) kinds.set(id, kind);
+    if (classify) for (const [id, kind] of await classify(model, ids)) kinds.set(id, kind);
   }
   return { plates, kinds };
 }
@@ -235,6 +282,8 @@ function buildSurfaces(
   bands: Map<string, Band>,
   feetPerUnit: number,
   startId: number,
+  idPrefix: string,
+  fallbackKind: SurfaceClass,
 ): PanelizableSurface[] {
   const modelPerFoot = 1 / feetPerUnit;
 
@@ -261,8 +310,7 @@ function buildSurfaces(
     Math.acos(Math.min(1, Math.abs(normal.dot(new THREE.Vector3(0, 1, 0))))),
   );
 
-  // Surface kind from IfcSlab.PredefinedType (majority of the group's members).
-  const klass = groupKind(group, kinds);
+  const klass = majorityKind(group, kinds, fallbackKind);
 
   return regions.map((region, i) => {
     // Region centroid in world, for storey assignment by elevation.
@@ -292,7 +340,7 @@ function buildSurfaces(
     if (worstResidual > NONPLANAR_RESIDUAL) flags.push("nonplanar");
 
     return {
-      id: `slab-${startId + i}`,
+      id: `${idPrefix}-${startId + i}`,
       klass,
       storey,
       plane: { origin: origin.clone(), normal: normal.clone(), u: u.clone(), v: v.clone() },
@@ -311,14 +359,25 @@ function scaleRegion(region: Polygon2D, s: number): Polygon2D {
   return { outer: scaleRing(region.outer), holes: region.holes.map(scaleRing) };
 }
 
-/** A coplanar group's kind = the majority IfcSlab.PredefinedType of its members. */
-function groupKind(
+/** A coplanar group's kind = the majority member kind (fallback if unclassified). */
+function majorityKind(
   group: PlateFit[],
   kinds: Map<number, SurfaceClass>,
+  fallback: SurfaceClass,
 ): SurfaceClass {
-  let roof = 0;
-  for (const p of group) if (kinds.get(p.localId) === "roof") roof++;
-  return roof * 2 > group.length ? "roof" : "floor";
+  const tally = new Map<SurfaceClass, number>();
+  for (const p of group) {
+    const k = kinds.get(p.localId) ?? fallback;
+    tally.set(k, (tally.get(k) ?? 0) + 1);
+  }
+  let best = fallback;
+  let bestN = 0;
+  for (const [k, n] of tally)
+    if (n > bestN) {
+      bestN = n;
+      best = k;
+    }
+  return best;
 }
 
 /** Storey whose vertical band contains `y` (nearest band if none contain it). */

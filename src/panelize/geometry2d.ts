@@ -75,6 +75,21 @@ export function simplifyRing(ring: Vec2[], eps: number): Vec2[] {
   return pts;
 }
 
+/** Even-odd ray-cast: is `p` strictly inside `ring`? */
+export function pointInRing(p: Vec2, ring: Vec2[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i];
+    const b = ring[j];
+    if (
+      a.y > p.y !== b.y > p.y &&
+      p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x
+    )
+      inside = !inside;
+  }
+  return inside;
+}
+
 /** Perpendicular distance from point `p` to the line through `a`–`b`. */
 function perpDistance(p: Vec2, a: Vec2, b: Vec2): number {
   const dx = b.x - a.x;
@@ -91,15 +106,39 @@ const toPolygon2D = (multi: MultiPolygon): Polygon2D[] =>
   }));
 
 /**
- * Union a set of outline rings (each a single, hole-free loop) into one or more
- * disjoint regions. Coplanar slab plates that abut merge into a whole floor;
- * physically separate ones come back as separate regions.
+ * Union regions (with holes) into one or more disjoint regions. Coplanar slab
+ * plates that abut merge into a whole floor — a hole survives only where no
+ * other plate covers it; physically separate plates come back as separate
+ * regions.
  */
-export function unionOutlines(rings: Vec2[][]): Polygon2D[] {
-  const valid = rings.filter((r) => r.length >= 3);
+export function unionRegions(regions: Polygon2D[]): Polygon2D[] {
+  const valid = regions.filter((r) => r.outer.length >= 3);
   if (!valid.length) return [];
-  const multi: MultiPolygon = valid.map((r) => [ringToPairs(r)]);
+  const multi: MultiPolygon = valid.map((r) => [
+    ringToPairs(r.outer),
+    ...r.holes.filter((h) => h.length >= 3).map(ringToPairs),
+  ]);
   return toPolygon2D(polygonClipping.union(multi));
+}
+
+/** Union a set of hole-free outline rings. */
+export function unionOutlines(rings: Vec2[][]): Polygon2D[] {
+  return unionRegions(rings.map((outer) => ({ outer, holes: [] })));
+}
+
+/** Intersect a region (with holes) against a clip ring, returning the overlap. */
+export function intersect(region: Polygon2D, clip: Vec2[]): Polygon2D[] {
+  if (clip.length < 3) return [];
+  const subject: MultiPolygon = [
+    [ringToPairs(region.outer), ...region.holes.map(ringToPairs)],
+  ];
+  const clipMp: MultiPolygon = [[ringToPairs(clip)]];
+  return toPolygon2D(polygonClipping.intersection(subject, clipMp));
+}
+
+/** Area of a region: outer ring minus its holes. */
+export function polygonArea(poly: Polygon2D): number {
+  return area(poly.outer) - poly.holes.reduce((s, h) => s + area(h), 0);
 }
 
 /** Subtract hole rings from a region, returning the resulting region(s). */

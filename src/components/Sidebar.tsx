@@ -1,5 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useStore, type CameraProjection } from "../store";
+import { manufacturers } from "../data";
+import type { LayoutOptions } from "../panelize/types";
 
 const PROJECTIONS: { id: CameraProjection; label: string }[] = [
   { id: "ortho", label: "Ortho" },
@@ -10,6 +12,7 @@ interface Props {
   onApplyView: () => void;
   onFile: (file: File) => void;
   onExtractSurfaces: () => void;
+  onPanelize: () => void;
   onSetProjection: (projection: CameraProjection) => void;
   onSelectSurface: (id: string) => void;
   onSelectStorey: (name: string) => void;
@@ -27,6 +30,7 @@ export function Sidebar({
   onApplyView,
   onFile,
   onExtractSurfaces,
+  onPanelize,
   onSetProjection,
   onSelectSurface,
   onSelectStorey,
@@ -51,6 +55,9 @@ export function Sidebar({
     showHorizontal,
     showVertical,
     selectedSurfaceId,
+    layout,
+    panelStats,
+    showPanels,
     set,
   } = useStore();
   const typeOn = { showHorizontal, showVertical };
@@ -86,6 +93,12 @@ export function Sidebar({
 
   const toggleType = (key: "showHorizontal" | "showVertical") =>
     update({ [key]: !typeOn[key] });
+
+  // Change a layout option; if a layout already exists, re-run it live.
+  const updateLayout = (partial: Partial<LayoutOptions>) => {
+    set({ layout: { ...layout, ...partial } });
+    if (panelStats) queueMicrotask(onPanelize);
+  };
 
   const toggleTypeOpen = (key: string) =>
     setOpenTypes((prev) => {
@@ -239,6 +252,75 @@ export function Sidebar({
                     </label>
                   ))}
                 </div>
+
+                <div className="flex flex-col gap-2 border-t border-neutral-200 pt-3 dark:border-neutral-800">
+                  <select
+                    value={layout.productId}
+                    onChange={(e) => updateLayout({ productId: e.target.value })}
+                    className="rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-800 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+                  >
+                    {manufacturers.map((m) => (
+                      <optgroup key={m.id} label={m.name}>
+                        {m.products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {m.name} {p.name} · {p.thickness_mm}mm
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <span className="w-11 shrink-0 text-xs text-neutral-500">Grain</span>
+                    <Choice
+                      value={layout.grainAngleDeg}
+                      options={[
+                        { v: 0, l: "0°" },
+                        { v: 90, l: "90°" },
+                      ]}
+                      onChange={(v) => updateLayout({ grainAngleDeg: v })}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-11 shrink-0 text-xs text-neutral-500">Stagger</span>
+                    <Choice
+                      value={layout.staggerFraction}
+                      options={[
+                        { v: 0, l: "None" },
+                        { v: 0.25, l: "¼" },
+                        { v: 0.5, l: "½" },
+                      ]}
+                      onChange={(v) => updateLayout({ staggerFraction: v })}
+                    />
+                  </div>
+                  <button
+                    onClick={onPanelize}
+                    className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500"
+                  >
+                    {panelStats ? "Re-layout panels" : "Layout panels"}
+                  </button>
+                  {panelStats && (
+                    <>
+                      <p className="text-xs text-neutral-500">
+                        {panelStats.total} panels · {panelStats.offcuts} cut ·{" "}
+                        {Math.round(panelStats.areaFt2)} ft²
+                      </p>
+                      {panelStats.overSpan > 0 && (
+                        <p className="text-xs text-red-500 dark:text-red-400">
+                          {panelStats.overSpan} over allowable span
+                        </p>
+                      )}
+                      <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300">
+                        <input
+                          type="checkbox"
+                          checked={showPanels}
+                          onChange={() => update({ showPanels: !showPanels })}
+                          className="accent-sky-500"
+                        />
+                        Show panels
+                      </label>
+                    </>
+                  )}
+                </div>
               </>
             )}
             {panelizeStatus === "error" && (
@@ -344,6 +426,35 @@ export function Sidebar({
         </>
       )}
     </aside>
+  );
+}
+
+/** Small segmented control for a numeric option. */
+function Choice({
+  value,
+  options,
+  onChange,
+}: {
+  value: number;
+  options: { v: number; l: string }[];
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="flex flex-1 gap-1 rounded-md bg-neutral-200 p-1 dark:bg-neutral-900">
+      {options.map((o) => (
+        <button
+          key={o.l}
+          onClick={() => onChange(o.v)}
+          className={`flex-1 rounded px-2 py-1 text-xs font-medium transition ${
+            value === o.v
+              ? "bg-sky-500 text-white"
+              : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200"
+          }`}
+        >
+          {o.l}
+        </button>
+      ))}
+    </div>
   );
 }
 

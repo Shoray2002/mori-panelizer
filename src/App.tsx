@@ -23,6 +23,7 @@ export default function App() {
   const handleFile = (file: File) => managerRef.current?.loadIfc(file);
   const applyView = () => managerRef.current?.applyView();
   const extractSurfaces = () => managerRef.current?.extractSurfaces();
+  const panelize = () => managerRef.current?.panelize();
   const setProjection = (projection: CameraProjection) =>
     managerRef.current?.setProjection(projection);
   const selectSurface = (id: string) => managerRef.current?.selectSurface(id);
@@ -35,6 +36,7 @@ export default function App() {
         onApplyView={applyView}
         onFile={handleFile}
         onExtractSurfaces={extractSurfaces}
+        onPanelize={panelize}
         onSetProjection={setProjection}
         onSelectSurface={selectSurface}
         onSelectStorey={selectStorey}

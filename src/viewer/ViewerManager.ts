@@ -2,12 +2,16 @@ import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 import { useStore } from "../store";
 import { extractSlabSurfaces, extractWallSurfaces } from "../panelize/surfaces";
-import type { PanelizableSurface } from "../panelize/types";
+import type { Panel, PanelizableSurface } from "../panelize/types";
+import { buildSurfaceOverlay, clearOverlay } from "../panelize/debugOverlay";
+import { panelizeAll } from "../panelize/panelize";
+import { buildPanelOverlay } from "../panelize/panelOverlay";
 import {
-  buildSurfaceOverlay,
-  clearSurfaceOverlay,
-} from "../panelize/debugOverlay";
-import { OVERLAY_GROUP, OVERLAY_OPACITY, isVertical } from "../panelize/constants";
+  OVERLAY_GROUP,
+  OVERLAY_OPACITY,
+  PANEL_GROUP,
+  isVertical,
+} from "../panelize/constants";
 import { type ModelIdMap, mergeInto } from "../modelIdMap";
 import type { CameraProjection } from "../store";
 import { Gizmo } from "./Gizmo";
@@ -70,6 +74,7 @@ export class ViewerManager {
   private storeyMaps = new Map<string, ModelIdMap>();
   private categoryMaps = new Map<string, ModelIdMap>();
   private surfaces: PanelizableSurface[] = [];
+  private panels: Panel[] = [];
   private gizmo!: Gizmo;
   private container!: HTMLElement;
   private raycaster = new THREE.Raycaster();
@@ -308,17 +313,27 @@ export class ViewerManager {
    * regardless of its type toggle — selection is explicit intent.
    */
   private reconcileOverlay(selectedSurfaceId: string | null, focusStorey: string | null) {
-    const { showHorizontal, showVertical } = useStore.getState();
-    const group = this.world.scene.three.getObjectByName(OVERLAY_GROUP);
-    if (!group) return;
-    for (const o of group.children) {
-      if (selectedSurfaceId) {
-        o.visible = o.userData.surfaceId === selectedSurfaceId;
-        continue;
-      }
+    const { showHorizontal, showVertical, showPanels } = useStore.getState();
+    const visibleFor = (o: THREE.Object3D) => {
+      if (selectedSurfaceId) return o.userData.surfaceId === selectedSurfaceId;
       const typeOn = isVertical(o.userData.klass as string) ? showVertical : showHorizontal;
-      o.visible = typeOn && (focusStorey ? o.userData.storey === focusStorey : true);
-    }
+      return typeOn && (focusStorey ? o.userData.storey === focusStorey : true);
+    };
+    // Where panels are drawn, the surface fill only muddies them — keep just
+    // the surface outline there.
+    const paneled = showPanels
+      ? new Set(this.panels.map((p) => p.surfaceId))
+      : new Set<string>();
+    const surfaceGroup = this.world.scene.three.getObjectByName(OVERLAY_GROUP);
+    if (surfaceGroup)
+      for (const o of surfaceGroup.children) {
+        const fillHidden =
+          (o as THREE.Mesh).isMesh && paneled.has(o.userData.surfaceId as string);
+        o.visible = !fillHidden && visibleFor(o);
+      }
+    const panelGroup = this.world.scene.three.getObjectByName(PANEL_GROUP);
+    if (panelGroup)
+      for (const o of panelGroup.children) o.visible = showPanels && visibleFor(o);
   }
 
   /** Merge the slab + wall items into a single ModelIdMap for framing. */
@@ -442,6 +457,7 @@ export class ViewerManager {
    */
   async extractSurfaces() {
     useStore.getState().set({ panelizeStatus: "working" });
+    this.clearPanels(); // the previous extraction's layout is stale
     try {
       const ctx = {
         fragments: this.fragments,
@@ -471,10 +487,40 @@ export class ViewerManager {
     }
   }
 
+  /**
+   * Run the staggered grid layout over the extracted surfaces with the current
+   * store options and (re)build the panel overlay. Pure geometry — cheap to
+   * re-run on any option change.
+   */
+  panelize() {
+    const scene = this.world.scene.three;
+    clearOverlay(scene, PANEL_GROUP);
+    const { layout } = useStore.getState();
+    this.panels = panelizeAll(this.surfaces, layout);
+    if (this.panels.length) scene.add(buildPanelOverlay(this.panels, this.surfaces));
+    useStore.getState().set({
+      showPanels: true,
+      panelStats: {
+        total: this.panels.length,
+        offcuts: this.panels.filter((p) => p.offcut).length,
+        overSpan: this.panels.filter((p) => !p.spanOK).length,
+        areaFt2: this.panels.reduce((a, p) => a + p.areaFt2, 0),
+      },
+    });
+    void this.applyView();
+  }
+
+  /** Drop the current layout and its overlay (surfaces changed or model cleared). */
+  private clearPanels() {
+    this.panels = [];
+    clearOverlay(this.world.scene.three, PANEL_GROUP);
+    useStore.getState().set({ panelStats: null });
+  }
+
   /** (Re)build the surface overlay; per-type visibility is handled in applyView. */
   renderSurfaceOverlay() {
     const scene = this.world.scene.three;
-    clearSurfaceOverlay(scene);
+    clearOverlay(scene);
     this.selectedFill = null; // overlay rebuilt — old mesh refs are stale
     useStore.getState().set({ selectedSurfaceId: null });
     if (this.surfaces.length) scene.add(buildSurfaceOverlay(this.surfaces));
@@ -569,7 +615,8 @@ export class ViewerManager {
       this.world.scene.three.remove(model.object);
       await this.fragments.core.disposeModel(MODEL_ID);
     }
-    clearSurfaceOverlay(this.world.scene.three);
+    clearOverlay(this.world.scene.three);
+    this.clearPanels();
     this.surfaces = [];
     this.storeyMaps.clear();
     this.categoryMaps.clear();

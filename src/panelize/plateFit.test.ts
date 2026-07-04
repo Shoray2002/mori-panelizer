@@ -52,6 +52,25 @@ describe("fitPlate", () => {
     expect(fit.area).toBeCloseTo(6, 2);
   });
 
+  it("keeps interior loops as opening holes", () => {
+    // Flat 4x4 face with a 2x2 hole: a triangulated ring of 8 quads' worth of
+    // triangles between outer verts 0-3 and inner verts 4-7 (plane z=0).
+    const positions = new Float32Array([
+      0, 0, 0, 4, 0, 0, 4, 4, 0, 0, 4, 0, // outer
+      1, 1, 0, 3, 1, 0, 3, 3, 0, 1, 3, 0, // inner
+    ]);
+    const indices = new Uint16Array([
+      0, 1, 5, 0, 5, 4,
+      1, 2, 6, 1, 6, 5,
+      2, 3, 7, 2, 7, 6,
+      3, 0, 4, 3, 4, 7,
+    ]);
+    const fit = fitPlate(positions, indices, new THREE.Matrix4(), 4)!;
+    expect(fit).not.toBeNull();
+    expect(fit.area).toBeCloseTo(16, 2); // outline only
+    expect(fit.holesUV).toHaveLength(1);
+  });
+
   it("rejects a non-plate (cube) as not plate-like enough only when ambiguous", () => {
     // A cube still has dominant opposing faces, so it should fit; assert it does
     // not throw and returns a plausible thickness.

@@ -30,6 +30,7 @@ export interface PlateFit {
   thickness: number; // extent along normal
   origin: THREE.Vector3; // provisional plane origin (face centroid)
   outlineUV: Vec2[]; // largest-face boundary, projected to this plate's basis
+  holesUV: Vec2[][]; // interior openings (windows, stairwells) in the same basis
   u: THREE.Vector3;
   v: THREE.Vector3;
   area: number; // outline area in UV
@@ -42,6 +43,28 @@ export interface SurfaceDiagnostics {
   planarityResidual: number; // worst member residual
   mergeCount: number; // how many plates merged into this surface
   flags: string[];
+}
+
+/** Layout parameters, chosen per project. */
+export interface LayoutOptions {
+  productId: string; // manufacturer panel product from the catalog
+  grainAngleDeg: number; // panel length runs along this angle in the surface UV frame
+  staggerFraction: number; // row-to-row seam offset as a fraction of panel length (0 = aligned, 0.5 = half)
+}
+
+/** One laid-out CLT panel on a surface, in the surface's UV (feet) frame. */
+export interface Panel {
+  id: string;
+  surfaceId: string;
+  index: number; // 1-based, in layout order
+  productId: string;
+  polygon: Polygon2D; // clipped outline in UV/feet (non-rectangular = slanted/notched cut)
+  lengthFt: number; // bounding extent along grain
+  widthFt: number; // bounding extent across grain
+  areaFt2: number; // net area (holes subtracted)
+  spanFt: number; // structural span = length along grain
+  spanOK: boolean; // spanFt within the product's allowable span (lookup only)
+  offcut: boolean; // clipped smaller than the nominal panel (a cut piece)
 }
 
 /** A flat, panelizable surface ready for the grid-layout stage. */

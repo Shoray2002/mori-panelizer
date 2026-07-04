@@ -68,8 +68,8 @@ export function buildSurfaceOverlay(surfaces: PanelizableSurface[]): THREE.Group
 }
 
 /** Remove and dispose a previously added overlay group from a scene. */
-export function clearSurfaceOverlay(scene: THREE.Object3D) {
-  const existing = scene.getObjectByName(OVERLAY_GROUP);
+export function clearOverlay(scene: THREE.Object3D, name = OVERLAY_GROUP) {
+  const existing = scene.getObjectByName(name);
   if (!existing) return;
   existing.traverse((o) => {
     const mesh = o as THREE.Mesh;

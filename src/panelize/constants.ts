@@ -48,6 +48,29 @@ export const CONV_M: Record<string, number> = {
   INCH: 0.0254,
 };
 
+// --- Panel layout (feet) ----------------------------------------------------
+
+export const MM_PER_FOOT = 304.8;
+/** Default row-to-row seam stagger (half-panel brick pattern). */
+export const DEFAULT_STAGGER = 0.5;
+/** Drop clip slivers smaller than this (ft²). */
+export const MIN_PANEL_AREA = 0.01;
+/** A panel clipped shorter/narrower than nominal by more than this is an offcut. */
+export const OFFCUT_EPS = 0.02;
+
+// --- Panel overlay ----------------------------------------------------------
+
+export const PANEL_GROUP = "panel-overlay";
+export const PANEL_OPACITY = 0.6;
+/** Cycled per panel index so adjacent panels and their seams read apart. */
+export const PANEL_PALETTE = [
+  0xf59e0b, 0x10b981, 0x8b5cf6, 0xec4899, 0x14b8a6, 0xf97316,
+];
+/** Fill for panels that fail the span lookup. */
+export const PANEL_COLOR_OVERSPAN = 0xef4444;
+/** Panel seam/outline color. */
+export const PANEL_SEAM_COLOR = 0x111111;
+
 // --- Debug overlay ----------------------------------------------------------
 
 export const OVERLAY_GROUP = "panelize-overlay";

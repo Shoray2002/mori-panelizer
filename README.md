@@ -34,6 +34,13 @@ Open the URL, drop an `.ifc` file onto the page (or click to browse).
    a surface to isolate, frame, and flatten the camera onto it. The two type
    toggles show/hide each orientation's overlay. **Show all** clears the focus.
 
+5. **Layout panels** — pick a CLT product (Sterling/Mercer), grain direction,
+   and seam stagger, then **Layout panels**. Panels tile every extracted
+   surface, clipped to its outline and openings; red panels exceed the
+   product's allowable span. Options re-layout live; **Show panels** toggles
+   the overlay. Panel specs live in `src/data/*.json` — edit to replace the
+   placeholder data.
+
 Click a surface directly in the 3D view to select it (same as the list).
 
 ## Other commands

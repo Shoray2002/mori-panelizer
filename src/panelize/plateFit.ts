@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { PlateFit, Vec2 } from "./types";
-import { area as ringArea, orient, simplifyRing } from "./geometry2d";
+import { area as ringArea, orient, pointInRing, simplifyRing } from "./geometry2d";
 import { IDENTITY_MATRIX, planeBasis, projectToPlane } from "./geometry3d";
 import {
   FACE_CONE,
@@ -213,17 +213,23 @@ export function fitPlate(
   origin.multiplyScalar(1 / canonVerts.length);
   const { u, v } = planeBasis(n);
 
-  // Outer loop = largest by UV area.
+  // Outer loop = largest by UV area; smaller loops inside it are openings.
+  const uvLoops = loops.map((loop) =>
+    loop.map((vi) => projectToPlane(canonVerts[vi], origin, u, v)),
+  );
   let outline: Vec2[] = [];
   let outlineArea = 0;
-  for (const loop of loops) {
-    const uv = loop.map((vi) => projectToPlane(canonVerts[vi], origin, u, v));
+  for (const uv of uvLoops) {
     const a = ringArea(uv);
     if (a > outlineArea) {
       outlineArea = a;
       outline = uv;
     }
   }
+  const holes = uvLoops
+    .filter((uv) => uv !== outline && uv.length >= 3 && pointInRing(uv[0], outline))
+    .map((uv) => orient(simplifyRing(uv, simplifyEps), false))
+    .filter((uv) => uv.length >= 3);
   outline = orient(simplifyRing(outline, simplifyEps), true);
   if (outline.length < 3) return null;
 
@@ -243,6 +249,7 @@ export function fitPlate(
     thickness,
     origin,
     outlineUV: outline,
+    holesUV: holes,
     u,
     v,
     area: ringArea(outline),

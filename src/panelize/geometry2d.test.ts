@@ -3,6 +3,8 @@ import {
   signedArea,
   simplifyRing,
   unionOutlines,
+  unionRegions,
+  pointInRing,
   boundingRect,
   area,
 } from "./geometry2d";
@@ -48,6 +50,32 @@ describe("unionOutlines", () => {
   it("keeps two separated squares as two regions", () => {
     const regions = unionOutlines([sq(0, 0, 2), sq(5, 0, 2)]);
     expect(regions).toHaveLength(2);
+  });
+});
+
+describe("pointInRing", () => {
+  it("distinguishes inside from outside", () => {
+    const ring = sq(0, 0, 4);
+    expect(pointInRing({ x: 2, y: 2 }, ring)).toBe(true);
+    expect(pointInRing({ x: 5, y: 2 }, ring)).toBe(false);
+  });
+});
+
+describe("unionRegions", () => {
+  it("keeps a hole no other plate covers", () => {
+    const regions = unionRegions([{ outer: sq(0, 0, 4), holes: [sq(1, 1, 2)] }]);
+    expect(regions).toHaveLength(1);
+    expect(regions[0].holes).toHaveLength(1);
+    expect(area(regions[0].outer) - area(regions[0].holes[0])).toBeCloseTo(12);
+  });
+
+  it("fills a hole covered by another plate", () => {
+    const regions = unionRegions([
+      { outer: sq(0, 0, 4), holes: [sq(1, 1, 2)] },
+      { outer: sq(1, 1, 2), holes: [] },
+    ]);
+    expect(regions).toHaveLength(1);
+    expect(regions[0].holes).toHaveLength(0);
   });
 });
 

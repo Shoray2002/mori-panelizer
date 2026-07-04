@@ -15,7 +15,7 @@ import type {
   Vec2,
 } from "./types";
 import { fitPlate } from "./plateFit";
-import { unionOutlines } from "./geometry2d";
+import { unionRegions } from "./geometry2d";
 import { planeBasis, projectToPlane, IDENTITY_MATRIX } from "./geometry3d";
 import {
   CONV_M,
@@ -265,9 +265,9 @@ function groupCoplanar(plates: PlateFit[]): PlateFit[][] {
   return [...groups.values()];
 }
 
-/** Reconstruct a member outline's world points from its own UV basis. */
-function memberWorldPoints(p: PlateFit): THREE.Vector3[] {
-  return p.outlineUV.map((uv) =>
+/** Reconstruct a member ring's world points from its own UV basis. */
+function ringWorldPoints(p: PlateFit, ring: Vec2[]): THREE.Vector3[] {
+  return ring.map((uv) =>
     p.origin
       .clone()
       .addScaledVector(p.u, uv.x)
@@ -300,10 +300,16 @@ function buildSurfaces(
   origin.multiplyScalar(1 / totalArea);
   const { u, v } = planeBasis(normal);
 
-  const outlines = group.map((p) =>
-    memberWorldPoints(p).map((pt) => projectToPlane(pt, origin, u, v)),
+  // Members re-projected into the shared basis, openings included: a hole
+  // survives the union only where no other plate covers it.
+  const toShared = (p: PlateFit, ring: Vec2[]) =>
+    ringWorldPoints(p, ring).map((pt) => projectToPlane(pt, origin, u, v));
+  const regions = unionRegions(
+    group.map((p) => ({
+      outer: toShared(p, p.outlineUV),
+      holes: p.holesUV.map((h) => toShared(p, h)),
+    })),
   );
-  const regions = unionOutlines(outlines);
 
   const worstResidual = Math.max(...group.map((p) => p.planarityResidual));
   const tiltDeg = THREE.MathUtils.radToDeg(

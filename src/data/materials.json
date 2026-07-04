@@ -1,0 +1,12 @@
+{
+  "speciesGrades": [
+    { "id": "spf-v2", "label": "SPF No.2 & Better" },
+    { "id": "dfl-v1", "label": "Douglas Fir-Larch No.1" },
+    { "id": "sp-select", "label": "Southern Pine Select Structural" }
+  ],
+  "finishes": [
+    { "id": "industrial", "label": "Industrial (non-visual)" },
+    { "id": "architectural", "label": "Architectural (visual)" },
+    { "id": "sanded", "label": "Sanded" }
+  ]
+}

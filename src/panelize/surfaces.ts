@@ -19,13 +19,17 @@ import { unionRegions } from "./geometry2d";
 import { planeBasis, projectToPlane, IDENTITY_MATRIX } from "./geometry3d";
 import {
   CONV_M,
+  FLAT_NZ,
+  MAX_PLATE_THICKNESS_FT,
   METRES_PER_FOOT,
   NONPLANAR_RESIDUAL,
   NORMAL_Q,
   OFFSET_Q,
   PREFIX_M,
+  PROXY_CATEGORY,
   SLAB_CATEGORY,
   WALL_CATEGORY,
+  WALL_NZ,
 } from "./constants";
 
 /** Vertical [min, max] Y extent of a storey. */
@@ -47,6 +51,21 @@ interface PlanarConfig {
     model: FragmentsModel,
     ids: number[],
   ) => Promise<Map<number, SurfaceClass>>;
+  /**
+   * Classify from the fitted plate rather than from IFC attributes, for files
+   * that carry no element types. Applied after plate fitting.
+   */
+  classifyPlate?: (plate: PlateFit) => SurfaceClass;
+  /** Reject fitted plates that aren't panel-like, before grouping. */
+  keepPlate?: (plate: PlateFit, feetPerUnit: number) => boolean;
+  /**
+   * Fit each mesh piece separately instead of merging an element's pieces into
+   * one mesh. Required when a single IFC element contains many independent
+   * solids — the IFC2x3 Sterling export puts the whole building inside one
+   * IfcBuildingElementProxy holding 52 closed shells, and merging them would
+   * fit one plate to the entire building.
+   */
+  splitPieces?: boolean;
 }
 
 /**
@@ -74,6 +93,50 @@ export function extractWallSurfaces(
   });
 }
 
+/**
+ * Fallback for models with no semantic element types.
+ *
+ * SketchUp-authored IFCs — including the Sterling sample set — ship every
+ * element as IfcBuildingElementProxy with no IfcWall/IfcSlab/IfcRoof anywhere,
+ * so the category-name extractors above find nothing. The geometry is still
+ * good, so we fit plates and classify each by its own orientation.
+ *
+ * Only worth running when the typed extractors came back empty; a well-formed
+ * BIM export can also contain proxies (furniture, site objects, generic models)
+ * which are not panelizable and would pollute the result.
+ */
+export function extractProxySurfaces(
+  ctx: PanelizeContext,
+): Promise<PanelizableSurface[]> {
+  return extractPlanarSurfaces(ctx, {
+    pattern: PROXY_CATEGORY,
+    idPrefix: "surface",
+    fallbackKind: "floor",
+    classifyPlate: classifyByOrientation,
+    keepPlate: (plate, feetPerUnit) =>
+      plate.thickness * feetPerUnit <= MAX_PLATE_THICKNESS_FT,
+    splitPieces: true,
+  });
+}
+
+/**
+ * Classify a plate from the direction it faces.
+ *
+ * `fitPlate` folds normals into a canonical hemisphere, so only the magnitude
+ * of the up-component is meaningful. Dead flat reads as a floor; anything
+ * pitched but not upright reads as a roof; upright is a wall.
+ *
+ * A flat roof therefore reads as "floor" — the two are indistinguishable from a
+ * single plate, and resolving them needs storey context (topmost band) rather
+ * than geometry alone. Floor-vs-roof only affects labelling and overlay colour,
+ * not the panel layout, so the simple rule is left in place deliberately.
+ */
+export function classifyByOrientation(plate: PlateFit): SurfaceClass {
+  const nz = Math.abs(plate.normal.y);
+  if (nz >= FLAT_NZ) return "floor";
+  return nz <= WALL_NZ ? "wall" : "roof";
+}
+
 /** Shared plate-fit → coplanar-merge → storey-classify pipeline. */
 async function extractPlanarSurfaces(
   ctx: PanelizeContext,
@@ -82,11 +145,31 @@ async function extractPlanarSurfaces(
   const map = mergeCategories(ctx.categoryMaps, cfg.pattern);
   if (!Object.keys(map).length) return [];
 
-  const { plates, kinds } = await fitPlates(ctx.fragments, map, cfg.classify);
-  if (!plates.length) return [];
+  const fitted = await fitPlates(
+    ctx.fragments,
+    map,
+    cfg.classify,
+    cfg.splitPieces,
+  );
+  const { kinds } = fitted;
+  if (!fitted.plates.length) return [];
 
   const firstModel = [...ctx.fragments.list.values()][0];
   const feetPerUnit = firstModel ? await detectFeetPerUnit(firstModel) : 1;
+
+  // Shape-based filtering and classification need the plate, and the filter
+  // needs the unit scale, so both run after fitting rather than inside it.
+  const plates = cfg.keepPlate
+    ? fitted.plates.filter((p) => cfg.keepPlate!(p, feetPerUnit))
+    : fitted.plates;
+  if (!plates.length) return [];
+
+  // Keyed by plate identity, not localId: with splitPieces many plates share
+  // one element id, and they can legitimately differ in class (a single proxy
+  // may hold both walls and floors).
+  const plateKinds = new Map<PlateFit, SurfaceClass>();
+  if (cfg.classifyPlate)
+    for (const p of plates) plateKinds.set(p, cfg.classifyPlate(p));
 
   const bands = await storeyBands(ctx);
   const groups = groupCoplanar(plates);
@@ -97,6 +180,7 @@ async function extractPlanarSurfaces(
     for (const surface of buildSurfaces(
       group,
       kinds,
+      plateKinds,
       bands,
       feetPerUnit,
       counter,
@@ -186,6 +270,7 @@ async function fitPlates(
     model: FragmentsModel,
     ids: number[],
   ) => Promise<Map<number, SurfaceClass>>,
+  splitPieces = false,
 ): Promise<{ plates: PlateFit[]; kinds: Map<number, SurfaceClass> }> {
   const plates: PlateFit[] = [];
   const kinds = new Map<number, SurfaceClass>();
@@ -196,10 +281,17 @@ async function fitPlates(
     const perElement = await model.getItemsGeometry(ids);
     perElement.forEach((pieces, i) => {
       const localId = pieces.find((p) => p.localId != null)?.localId ?? ids[i];
-      const { positions, indices } = combinePieces(pieces);
-      if (positions.length < 9) return;
-      const fit = fitPlate(positions, indices, IDENTITY_MATRIX, localId);
-      if (fit) plates.push(fit);
+      // One plate per element, or one per solid when the element is a bag of
+      // unrelated shells. Keep the element's localId either way so selection
+      // and isolation still resolve back to a real IFC item.
+      const meshes = splitPieces
+        ? pieces.map((piece) => combinePieces([piece]))
+        : [combinePieces(pieces)];
+      for (const { positions, indices } of meshes) {
+        if (positions.length < 9) continue;
+        const fit = fitPlate(positions, indices, IDENTITY_MATRIX, localId);
+        if (fit) plates.push(fit);
+      }
     });
 
     if (classify) for (const [id, kind] of await classify(model, ids)) kinds.set(id, kind);
@@ -279,6 +371,7 @@ function ringWorldPoints(p: PlateFit, ring: Vec2[]): THREE.Vector3[] {
 function buildSurfaces(
   group: PlateFit[],
   kinds: Map<number, SurfaceClass>,
+  plateKinds: Map<PlateFit, SurfaceClass>,
   bands: Map<string, Band>,
   feetPerUnit: number,
   startId: number,
@@ -316,7 +409,7 @@ function buildSurfaces(
     Math.acos(Math.min(1, Math.abs(normal.dot(new THREE.Vector3(0, 1, 0))))),
   );
 
-  const klass = majorityKind(group, kinds, fallbackKind);
+  const klass = majorityKind(group, kinds, plateKinds, fallbackKind);
 
   return regions.map((region, i) => {
     // Region centroid in world, for storey assignment by elevation.
@@ -369,11 +462,13 @@ function scaleRegion(region: Polygon2D, s: number): Polygon2D {
 function majorityKind(
   group: PlateFit[],
   kinds: Map<number, SurfaceClass>,
+  plateKinds: Map<PlateFit, SurfaceClass>,
   fallback: SurfaceClass,
 ): SurfaceClass {
   const tally = new Map<SurfaceClass, number>();
   for (const p of group) {
-    const k = kinds.get(p.localId) ?? fallback;
+    // Per-plate (geometric) classification wins over per-element (IFC attribute).
+    const k = plateKinds.get(p) ?? kinds.get(p.localId) ?? fallback;
     tally.set(k, (tally.get(k) ?? 0) + 1);
   }
   let best = fallback;

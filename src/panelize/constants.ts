@@ -5,6 +5,30 @@ import * as THREE from "three";
 /** Categories that contribute panelizable surfaces. */
 export const SLAB_CATEGORY = /slab|roof/i;
 export const WALL_CATEGORY = /^wall/i;
+/**
+ * Untyped geometry. SketchUp (and other non-BIM) IFC exports classify nothing:
+ * every element ships as IfcBuildingElementProxy, so `slab|roof` and `^wall`
+ * match nothing and extraction returns empty. These elements carry real
+ * panelizable geometry, so we take them and classify by shape instead —
+ * see `classifyByOrientation`.
+ */
+export const PROXY_CATEGORY = /^buildingelementproxy$/i;
+
+// --- Geometric classification (fallback for untyped geometry) ---------------
+
+/**
+ * |normal·up| above which a plate counts as dead flat (a floor). The roof on
+ * the Sterling sample sits at 7.15° (|n·up| = 0.9922), so this threshold has to
+ * stay tight — a loose 0.99 folds an entire pitched roof into the floor set.
+ */
+export const FLAT_NZ = 0.9995;
+/** |normal·up| below which a plate is vertical (a wall). */
+export const WALL_NZ = 0.05;
+/**
+ * Plates thicker than this (feet) are massing/solid blocks, not panels. Guards
+ * against whole-roof-plane blobs that some exports include alongside panels.
+ */
+export const MAX_PLATE_THICKNESS_FT = 2;
 
 // --- Plate fitting (model units) --------------------------------------------
 

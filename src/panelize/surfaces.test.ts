@@ -30,10 +30,10 @@ describe("classifyByOrientation", () => {
     expect(classifyByOrientation(plate(new THREE.Vector3(-1, 0, 0)))).toBe("wall");
   });
 
-  it("calls the 7.15 deg Sterling roof a roof, not a floor", () => {
-    // Regression guard. The 1702 E 38th roof sits at 7.15 deg (|n.y| = 0.9922),
+  it("calls the 7.125 deg Sterling roof a roof, not a floor", () => {
+    // Regression guard. The 1702 E 38th roof sits at 7.125 deg, 1.5 in 12 (|n.y| = 0.99228),
     // so a loose flat threshold silently folds the whole roof into the floors.
-    const roof = classifyByOrientation(plate(pitched(7.15)));
+    const roof = classifyByOrientation(plate(pitched(7.125)));
     expect(roof).toBe("roof");
   });
 

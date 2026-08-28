@@ -18,7 +18,7 @@ export const PROXY_CATEGORY = /^buildingelementproxy$/i;
 
 /**
  * |normal·up| above which a plate counts as dead flat (a floor). The roof on
- * the Sterling sample sits at 7.15° (|n·up| = 0.9922), so this threshold has to
+ * the Sterling sample sits at 7.125° (|n·up| = 0.99228), so this threshold has to
  * stay tight — a loose 0.99 folds an entire pitched roof into the floor set.
  */
 export const FLAT_NZ = 0.9995;

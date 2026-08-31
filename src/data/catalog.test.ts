@@ -28,7 +28,7 @@ describe("Sterling catalog", () => {
   it("uses the true stock lengths, not the nominal foot sizes", () => {
     // The catalog is 164 / 186 / 212 in. Nominal "14 / 16 / 18 ft" would be
     // 168 / 192 / 216, which is what the placeholder data wrongly carried and
-    // would overstate every panel by 2 to 4 in.
+    // would overstate every panel by 4 to 6 in.
     const lengths = [...new Set(sterling.products.map((p) => p.maxLength_mm))];
     expect(lengths.map((mm) => Math.round(mm / MM_PER_IN)).sort((a, b) => a - b))
       .toEqual([164, 186, 212]);

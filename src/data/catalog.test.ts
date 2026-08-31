@@ -53,7 +53,7 @@ describe("the ingest guard spans every manufacturer", () => {
     const inches = catalogThicknessesMm.map((mm) => +(mm / MM_PER_IN).toFixed(3));
     expect(inches).toEqual([...inches].sort((a, b) => a - b));
     expect(inches).toEqual(expect.arrayContaining([4.125, 6.875, 9.625]));
-    expect(inches.length).toBeGreaterThan(3);
+    expect(inches).toHaveLength(6);
   });
 });
 
@@ -75,10 +75,27 @@ describe("span is not panel length", () => {
     expect(s18.maxSpan_mm).toBeLessThan(s18.maxLength_mm);
   });
 
-  it("reads 10 / 16 / 17.667 ft from the table at the conservative dead load", () => {
-    expect(spanTable.max_span_ft_by_ply).toEqual({
-      "3": 10.0, "5": 16.0, "7": 17.667,
-    });
+  it("derives max_span_ft_by_ply from the permitted-ply matrix", () => {
+    // Not a restatement of the file: re-derive the summary from the matrix it
+    // summarises, so the two cannot drift apart.
+    const dl60 = spanTable.permitted_ply_by_dead_load_psf["60"];
+    for (const ply of [3, 5, 7]) {
+      const widest = spanTable.span_ft
+        .filter((_, i) => dl60[i].includes(ply))
+        .reduce((a, b) => Math.max(a, b), 0);
+      expect(spanTable.max_span_ft_by_ply[String(ply)]).toBe(widest);
+    }
+  });
+
+  it("caps every product's span at min(table, stock length)", () => {
+    // The central claim of the catalog change, asserted nowhere else.
+    const MM_PER_FT = 304.8;
+    for (const p of panelCatalog) {
+      if (p.manufacturerId !== "sterling") continue;
+      const ply = p.layup.split("-")[0];
+      const fromTable = spanTable.max_span_ft_by_ply[ply] * MM_PER_FT;
+      expect(p.maxSpan_mm).toBeCloseTo(Math.min(fromTable, p.maxLength_mm), 1);
+    }
   });
 
   it("permits fewer plies as dead load rises", () => {

@@ -6,7 +6,13 @@ import type {
   Vec2,
 } from "./types";
 import { boundingRect, intersect, polygonArea } from "./geometry2d";
-import { MIN_PANEL_AREA, MM_PER_FOOT, OFFCUT_EPS, isVertical } from "./constants";
+import {
+  MIN_PANEL_AREA,
+  MM_PER_FOOT,
+  OFFCUT_EPS,
+  SPAN_EPS,
+  isVertical,
+} from "./constants";
 import { panelCatalog } from "../data";
 
 const productById = (id: string) => panelCatalog.find((p) => p.id === id);
@@ -90,7 +96,7 @@ export function panelizeSurface(
           widthFt,
           areaFt2,
           spanFt: lengthFt,
-          spanOK: !spanChecked || lengthFt <= maxSpan + OFFCUT_EPS,
+          spanOK: !spanChecked || lengthFt <= maxSpan + SPAN_EPS,
           offcut: lengthFt < L - OFFCUT_EPS || widthFt < W - OFFCUT_EPS,
         });
         index++;

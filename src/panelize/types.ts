@@ -62,8 +62,20 @@ export interface Panel {
   lengthFt: number; // bounding extent along grain
   widthFt: number; // bounding extent across grain
   areaFt2: number; // net area (holes subtracted)
-  spanFt: number; // structural span = length along grain
-  spanOK: boolean; // spanFt within the product's allowable span (lookup only)
+  /**
+   * Panel length along the grain. NOT the structural span: the true span is the
+   * spacing of the supports underneath, which the layout does not know. These
+   * coincide only for a panel simply supported at its two ends and nowhere else.
+   */
+  spanFt: number;
+  /**
+   * Advisory only. False means the panel is longer than the product's allowable
+   * *simple* span, which is worth a look but is not a structural verdict — a
+   * panel continuous over an intermediate support may be fine, and a short
+   * offcut over a wide unsupported bay may not be. Resolving it properly needs
+   * support spacing as a layout input.
+   */
+  spanOK: boolean;
   offcut: boolean; // clipped smaller than the nominal panel (a cut piece)
 }
 

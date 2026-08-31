@@ -15,6 +15,7 @@ import type {
   Vec2,
 } from "./types";
 import { fitPlate } from "./plateFit";
+import { matchCatalogThickness } from "../data";
 import { unionRegions } from "./geometry2d";
 import { planeBasis, projectToPlane, IDENTITY_MATRIX } from "./geometry3d";
 import {
@@ -22,6 +23,7 @@ import {
   FLAT_NZ,
   MAX_PLATE_THICKNESS_FT,
   METRES_PER_FOOT,
+  MM_PER_FOOT,
   NONPLANAR_RESIDUAL,
   NORMAL_Q,
   OFFSET_Q,
@@ -435,8 +437,23 @@ function buildSurfaces(
     );
     worldFromUV.setPosition(origin);
 
+    const thicknessFt = Math.max(...group.map((p) => p.thickness)) * feetPerUnit;
+
     const flags: string[] = [];
     if (worstResidual > NONPLANAR_RESIDUAL) flags.push("nonplanar");
+
+    // Does the measured thickness correspond to anything we can actually buy?
+    // A miss is not fatal — the surface still panelizes — but it is the tell for
+    // a unit error (a plate 3.28x out is feet read as metres) or for a model
+    // drawn to a layup outside the catalog, so it must be visible rather than
+    // silently carried into the layout.
+    const match = matchCatalogThickness(thicknessFt * MM_PER_FOOT);
+    if (!match.withinTolerance) {
+      flags.push(
+        `off-catalog thickness ${(thicknessFt * 12).toFixed(2)} in` +
+          (match.product ? ` (nearest ${match.product.layup})` : ""),
+      );
+    }
 
     return {
       id: `${idPrefix}-${startId + i}`,
@@ -444,7 +461,7 @@ function buildSurfaces(
       storey,
       plane: { origin: origin.clone(), normal: normal.clone(), u: u.clone(), v: v.clone() },
       region: regionFt,
-      thickness: Math.max(...group.map((p) => p.thickness)) * feetPerUnit,
+      thickness: thicknessFt,
       sourceLocalIds: group.map((p) => p.localId),
       worldFromUV,
       diagnostics: { tiltDeg, planarityResidual: worstResidual, mergeCount: group.length, flags },

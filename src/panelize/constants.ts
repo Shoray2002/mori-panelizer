@@ -81,6 +81,14 @@ export const DEFAULT_STAGGER = 0.5;
 export const MIN_PANEL_AREA = 0.01;
 /** A panel clipped shorter/narrower than nominal by more than this is an offcut. */
 export const OFFCUT_EPS = 0.02;
+/**
+ * Floating-point slack on the span comparison (ft). Deliberately far tighter
+ * than OFFCUT_EPS, which this used to borrow: that is a sliver-detection
+ * threshold, and at 0.02 ft it silently granted 6 mm of over-span in the
+ * unconservative direction. Tuning sliver detection should not loosen a
+ * structural check.
+ */
+export const SPAN_EPS = 1e-6;
 
 // --- Panel overlay ----------------------------------------------------------
 

@@ -33,7 +33,7 @@ export interface PanelProduct {
 export interface Manufacturer {
   id: string;
   name: string;
-  /** Where the numbers came from. Absent means unverified placeholder data. */
+  /** Where the numbers came from. Says so explicitly when unverified. */
   source?: string;
   products: PanelProduct[];
 }
@@ -84,8 +84,11 @@ export const catalogThicknessesMm = [
  * lands 3.28x off every layup is the tell, so this returns the nearest product
  * and the miss, and lets the caller decide rather than silently snapping.
  *
- * `toleranceMm` defaults to 2 mm, comfortably inside Sterling's own 1/16 in
- * (1.59 mm) thickness tolerance plus mesh noise.
+ * `toleranceMm` defaults to 2 mm: Sterling's own thickness tolerance is 1/16 in
+ * (1.5875 mm), so the window admits the full manufacturing band plus 0.41 mm of
+ * mesh error. Do not raise it past 2.73 mm — that is half the smallest gap
+ * between two catalog layups, beyond which a plate can match two products at
+ * once and the result becomes catalog-order dependent.
  */
 export function matchCatalogThickness(
   measuredMm: number,

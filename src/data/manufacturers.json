@@ -1,20 +1,157 @@
 [
   {
     "id": "sterling",
-    "name": "Sterling",
+    "name": "Sterling Structural",
+    "source": "External Pricing 060126.pdf and Design Manual V1 07_2025 p.9",
     "products": [
-      { "id": "sterling-300-8.14", "name": "300-8.14", "layup": "3-ply", "thickness_mm": 105, "maxLength_mm": 4267, "maxWidth_mm": 2337, "maxSpan_mm": 4267, "weight_kg_per_m2": 65.5, "price_per_m2": 78 },
-      { "id": "sterling-300-8.16", "name": "300-8.16", "layup": "3-ply", "thickness_mm": 105, "maxLength_mm": 4877, "maxWidth_mm": 2337, "maxSpan_mm": 4877, "weight_kg_per_m2": 65.5, "price_per_m2": 78 },
-      { "id": "sterling-300-8.18", "name": "300-8.18", "layup": "3-ply", "thickness_mm": 105, "maxLength_mm": 5486, "maxWidth_mm": 2337, "maxSpan_mm": 5486, "weight_kg_per_m2": 65.5, "price_per_m2": 78 }
+      {
+        "id": "sterling-tl300s14",
+        "sku": "TL300S14",
+        "name": "300S14",
+        "layup": "3-ply",
+        "thickness_mm": 104.775,
+        "maxLength_mm": 4165.6,
+        "maxWidth_mm": 2336.8,
+        "maxSpan_mm": 3048.0,
+        "weight_kg_per_m2": 65.46,
+        "price_per_m2": 112.28
+      },
+      {
+        "id": "sterling-tl300s16",
+        "sku": "TL300S16",
+        "name": "300S16",
+        "layup": "3-ply",
+        "thickness_mm": 104.775,
+        "maxLength_mm": 4724.4,
+        "maxWidth_mm": 2336.8,
+        "maxSpan_mm": 3048.0,
+        "weight_kg_per_m2": 65.46,
+        "price_per_m2": 108.24
+      },
+      {
+        "id": "sterling-tl300s18",
+        "sku": "TL300S18",
+        "name": "300S18",
+        "layup": "3-ply",
+        "thickness_mm": 104.775,
+        "maxLength_mm": 5384.8,
+        "maxWidth_mm": 2336.8,
+        "maxSpan_mm": 3048.0,
+        "weight_kg_per_m2": 65.46,
+        "price_per_m2": 104.9
+      },
+      {
+        "id": "sterling-tl500s14",
+        "sku": "TL500S14",
+        "name": "500S14",
+        "layup": "5-ply",
+        "thickness_mm": 174.625,
+        "maxLength_mm": 4165.6,
+        "maxWidth_mm": 2336.8,
+        "maxSpan_mm": 4165.6,
+        "weight_kg_per_m2": 109.09,
+        "price_per_m2": 172.38
+      },
+      {
+        "id": "sterling-tl500s16",
+        "sku": "TL500S16",
+        "name": "500S16",
+        "layup": "5-ply",
+        "thickness_mm": 174.625,
+        "maxLength_mm": 4724.4,
+        "maxWidth_mm": 2336.8,
+        "maxSpan_mm": 4724.4,
+        "weight_kg_per_m2": 109.09,
+        "price_per_m2": 167.94
+      },
+      {
+        "id": "sterling-tl500s18",
+        "sku": "TL500S18",
+        "name": "500S18",
+        "layup": "5-ply",
+        "thickness_mm": 174.625,
+        "maxLength_mm": 5384.8,
+        "maxWidth_mm": 2336.8,
+        "maxSpan_mm": 4876.8,
+        "weight_kg_per_m2": 109.09,
+        "price_per_m2": 161.96
+      },
+      {
+        "id": "sterling-tl700s14",
+        "sku": "TL700S14",
+        "name": "700S14",
+        "layup": "7-ply",
+        "thickness_mm": 244.475,
+        "maxLength_mm": 4165.6,
+        "maxWidth_mm": 2336.8,
+        "maxSpan_mm": 4165.6,
+        "weight_kg_per_m2": 152.73,
+        "price_per_m2": 213.89
+      },
+      {
+        "id": "sterling-tl700s16",
+        "sku": "TL700S16",
+        "name": "700S16",
+        "layup": "7-ply",
+        "thickness_mm": 244.475,
+        "maxLength_mm": 4724.4,
+        "maxWidth_mm": 2336.8,
+        "maxSpan_mm": 4724.4,
+        "weight_kg_per_m2": 152.73,
+        "price_per_m2": 203.08
+      },
+      {
+        "id": "sterling-tl700s18",
+        "sku": "TL700S18",
+        "name": "700S18",
+        "layup": "7-ply",
+        "thickness_mm": 244.475,
+        "maxLength_mm": 5384.8,
+        "maxWidth_mm": 2336.8,
+        "maxSpan_mm": 5384.8,
+        "weight_kg_per_m2": 152.73,
+        "price_per_m2": 203.29
+      }
     ]
   },
   {
     "id": "mercer",
     "name": "Mercer",
     "products": [
-      { "id": "mercer-clt-3", "name": "3-ply", "layup": "3-ply", "thickness_mm": 99, "maxLength_mm": 14400, "maxWidth_mm": 2400, "maxSpan_mm": 3300, "weight_kg_per_m2": 49, "price_per_m2": 74 },
-      { "id": "mercer-clt-5", "name": "5-ply", "layup": "5-ply", "thickness_mm": 169, "maxLength_mm": 14400, "maxWidth_mm": 2400, "maxSpan_mm": 5700, "weight_kg_per_m2": 84, "price_per_m2": 116 },
-      { "id": "mercer-clt-7", "name": "7-ply", "layup": "7-ply", "thickness_mm": 239, "maxLength_mm": 14400, "maxWidth_mm": 2400, "maxSpan_mm": 8100, "weight_kg_per_m2": 118, "price_per_m2": 162 }
-    ]
+      {
+        "id": "mercer-clt-3",
+        "name": "3-ply",
+        "layup": "3-ply",
+        "thickness_mm": 99,
+        "maxLength_mm": 14400,
+        "maxWidth_mm": 2400,
+        "maxSpan_mm": 3300,
+        "weight_kg_per_m2": 49,
+        "price_per_m2": 74
+      },
+      {
+        "id": "mercer-clt-5",
+        "name": "5-ply",
+        "layup": "5-ply",
+        "thickness_mm": 169,
+        "maxLength_mm": 14400,
+        "maxWidth_mm": 2400,
+        "maxSpan_mm": 5700,
+        "weight_kg_per_m2": 84,
+        "price_per_m2": 116
+      },
+      {
+        "id": "mercer-clt-7",
+        "name": "7-ply",
+        "layup": "7-ply",
+        "thickness_mm": 239,
+        "maxLength_mm": 14400,
+        "maxWidth_mm": 2400,
+        "maxSpan_mm": 8100,
+        "weight_kg_per_m2": 118,
+        "price_per_m2": 162
+      }
+    ],
+    "source": "placeholder, not verified against a Mercer catalogue"
   }
 ]

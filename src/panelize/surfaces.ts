@@ -19,7 +19,6 @@ import { matchCatalogThickness } from "../data";
 import { unionRegions } from "./geometry2d";
 import { planeBasis, projectToPlane, IDENTITY_MATRIX } from "./geometry3d";
 import {
-  CONV_M,
   FLAT_NZ,
   MAX_PLATE_THICKNESS_FT,
   METRES_PER_FOOT,
@@ -27,7 +26,6 @@ import {
   NONPLANAR_RESIDUAL,
   NORMAL_Q,
   OFFSET_Q,
-  PREFIX_M,
   PROXY_CATEGORY,
   SLAB_CATEGORY,
   WALL_CATEGORY,
@@ -156,8 +154,8 @@ async function extractPlanarSurfaces(
   const { kinds } = fitted;
   if (!fitted.plates.length) return [];
 
-  const firstModel = [...ctx.fragments.list.values()][0];
-  const feetPerUnit = firstModel ? await detectFeetPerUnit(firstModel) : 1;
+
+  const feetPerUnit = FEET_PER_UNIT;
 
   // Shape-based filtering and classification need the plate, and the filter
   // needs the unit scale, so both run after fitting rather than inside it.
@@ -210,6 +208,19 @@ function logSummary(surfaces: PanelizableSurface[], feetPerUnit: number) {
     `[panelize] ${surfaces.length} surfaces · feetPerUnit=${feetPerUnit.toFixed(4)} · ` +
       `sample ${w.toFixed(1)}×${h.toFixed(1)} ft · thickness ${(s.thickness * 12).toFixed(2)} in`,
   );
+
+  // A wrong unit scale is invisible downstream: the overlay divides the same
+  // factor back out, so the model looks right while every region is off by
+  // orders of magnitude and the layout silently yields nothing. Thickness is
+  // the cheapest tell, because a panel is always a layup we can buy.
+  const match = matchCatalogThickness(s.thickness * MM_PER_FOOT, 6);
+  if (!match.withinTolerance || w < 1 || h < 1) {
+    console.warn(
+      `[panelize] scale looks wrong: a sample surface is ${w.toFixed(2)}×${h.toFixed(2)} ft ` +
+        `at ${(s.thickness * 12).toFixed(3)} in thick, which is no catalog layup. ` +
+        `Panel layout will produce little or nothing.`,
+    );
+  }
 }
 
 function attr(d: ItemData, key: string): ItemAttribute | undefined {
@@ -218,39 +229,21 @@ function attr(d: ItemData, key: string): ItemAttribute | undefined {
 }
 
 /**
- * Feet per model coordinate unit, read from the IFC length unit. A
- * conversion-based foot/inch unit wins over the SI metre it's derived from
- * (Eason → 1); a plain SI metre/millimetre yields the metre→foot factor
- * (Duplex → 3.2808). Defaults to 1 (assume feet) when undetected.
+ * Feet per unit of the geometry the fragments engine hands back.
+ *
+ * It normalises to metres regardless of what the IFC declares, so this is a
+ * constant rather than something to read off the file.
+ *
+ * This used to detect the file's own length unit, which is correct for a
+ * metre-declared export by coincidence and wrong for anything else. The 52-shell
+ * 1702 export declares millimetres, so every region came out 304.8x too small,
+ * every tile fell below MIN_PANEL_AREA, and the layout produced zero panels on a
+ * model whose surfaces had extracted perfectly. The overlay still looked right,
+ * because worldFromUV multiplies the same factor back out — the error cancelled
+ * itself everywhere except the one place that mattered.
  */
-async function detectFeetPerUnit(model: FragmentsModel): Promise<number> {
-  const cats = await model.getItemsOfCategories([
-    /IFCSIUNIT/,
-    /IFCCONVERSIONBASEDUNIT/,
-  ]);
-  const ids = Object.values(cats).flat();
-  if (!ids.length) return 1;
+const FEET_PER_UNIT = 1 / METRES_PER_FOOT;
 
-  const data = await model.getItemsData(ids, {
-    attributesDefault: false,
-    attributes: ["UnitType", "Name", "Prefix"],
-  });
-
-  let si: number | null = null;
-  let conv: number | null = null;
-  for (const d of data) {
-    if (!String(attr(d, "UnitType")?.value ?? "").toUpperCase().includes("LENGTH"))
-      continue;
-    const name = String(attr(d, "Name")?.value ?? "").toUpperCase();
-    if (CONV_M[name] != null) conv = CONV_M[name];
-    else if (name.includes("MET")) {
-      const prefix = String(attr(d, "Prefix")?.value ?? "").toUpperCase();
-      si = PREFIX_M[prefix] ?? 1;
-    }
-  }
-  const metresPerUnit = conv ?? si ?? METRES_PER_FOOT;
-  return metresPerUnit / METRES_PER_FOOT;
-}
 
 /** Merge every category whose display name matches `pattern` into one map. */
 function mergeCategories(

@@ -8,16 +8,24 @@
 
 import manufacturersData from "./manufacturers.json";
 import materialsData from "./materials.json";
+import spanTableData from "./span-table.json";
 
 /** A standard CLT panel product. Lengths in millimetres. */
 export interface PanelProduct {
   id: string;
-  name: string; // manufacturer series name, e.g. "300-8.14"
+  sku?: string; // supplier order code, e.g. "TL300S14"
+  name: string; // manufacturer series name, e.g. "300S14"
   layup: string; // e.g. "3-ply"
   thickness_mm: number;
   maxLength_mm: number; // max stock length before cutting
   maxWidth_mm: number; // max stock width before cutting
-  maxSpan_mm: number; // allowable simple span — the compliance lookup value
+  /**
+   * Allowable simple span — the compliance lookup value. This is the distance
+   * between supports, NOT the panel length, and for Sterling it is well short
+   * of it: a 3-ply panel is 164 in long but only spans 10 ft. Sourced from the
+   * span table at the conservative dead load; see span-table.json.
+   */
+  maxSpan_mm: number;
   weight_kg_per_m2: number; // for freight weight estimates
   price_per_m2: number; // material cost
 }
@@ -25,6 +33,8 @@ export interface PanelProduct {
 export interface Manufacturer {
   id: string;
   name: string;
+  /** Where the numbers came from. Says so explicitly when unverified. */
+  source?: string;
   products: PanelProduct[];
 }
 
@@ -44,3 +54,61 @@ export const finishes = materials.finishes;
 export const panelCatalog = manufacturers.flatMap((m) =>
   m.products.map((p) => ({ ...p, manufacturerId: m.id, manufacturerName: m.name })),
 );
+
+export interface SpanTable {
+  source: string;
+  note: string;
+  live_load_psf: number;
+  span_ft: number[];
+  permitted_ply_by_dead_load_psf: Record<string, number[][]>;
+  max_span_ft_by_ply: Record<string, number>;
+  max_span_basis: string;
+}
+
+export const spanTable = spanTableData as SpanTable;
+
+/**
+ * Distinct layup thicknesses in the catalog, ascending. Used by the ingest
+ * guard: a plate whose measured thickness matches none of these is not a
+ * panel we can supply, whatever the geometry says.
+ */
+export const catalogThicknessesMm = [
+  ...new Set(panelCatalog.map((p) => p.thickness_mm)),
+].sort((a, b) => a - b);
+
+/**
+ * Match a measured thickness against the catalog.
+ *
+ * The models arrive in whatever units the exporter felt like writing, and one
+ * Sterling sample declares FOOT while its coordinates are metres. A plate that
+ * lands 3.28x off every layup is the tell, so this returns the nearest product
+ * and the miss, and lets the caller decide rather than silently snapping.
+ *
+ * `toleranceMm` defaults to 2 mm: Sterling's own thickness tolerance is 1/16 in
+ * (1.5875 mm), so the window admits the full manufacturing band plus 0.41 mm of
+ * mesh error. Do not raise it past 2.73 mm — that is half the smallest gap
+ * between two catalog layups, beyond which a plate can match two products at
+ * once and the result becomes catalog-order dependent.
+ */
+export function matchCatalogThickness(
+  measuredMm: number,
+  toleranceMm = 2,
+): { product: PanelProduct | null; deltaMm: number; withinTolerance: boolean } {
+  if (!Number.isFinite(measuredMm) || measuredMm <= 0) {
+    return { product: null, deltaMm: NaN, withinTolerance: false };
+  }
+  let best: PanelProduct | null = null;
+  let bestDelta = Infinity;
+  for (const p of panelCatalog) {
+    const d = Math.abs(p.thickness_mm - measuredMm);
+    if (d < bestDelta) {
+      bestDelta = d;
+      best = p;
+    }
+  }
+  return {
+    product: best,
+    deltaMm: bestDelta,
+    withinTolerance: bestDelta <= toleranceMm,
+  };
+}

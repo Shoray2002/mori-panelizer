@@ -263,7 +263,8 @@ export function Sidebar({
                       <optgroup key={m.id} label={m.name}>
                         {m.products.map((p) => (
                           <option key={p.id} value={p.id}>
-                            {m.name} {p.name} · {p.thickness_mm}mm
+                            {p.sku ?? p.name} · {(p.thickness_mm / 25.4).toFixed(3)} in ·{" "}
+                            {(p.maxLength_mm / 25.4).toFixed(0)} in
                           </option>
                         ))}
                       </optgroup>
@@ -306,7 +307,7 @@ export function Sidebar({
                       </p>
                       {panelStats.overSpan > 0 && (
                         <p className="text-xs text-red-500 dark:text-red-400">
-                          {panelStats.overSpan} over allowable span
+                          {panelStats.overSpan} longer than the simple-span allowance — check supports
                         </p>
                       )}
                       <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300">

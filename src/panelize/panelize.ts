@@ -6,7 +6,13 @@ import type {
   Vec2,
 } from "./types";
 import { boundingRect, intersect, polygonArea } from "./geometry2d";
-import { MIN_PANEL_AREA, MM_PER_FOOT, OFFCUT_EPS, isVertical } from "./constants";
+import {
+  MIN_PANEL_AREA,
+  MM_PER_FOOT,
+  OFFCUT_EPS,
+  SPAN_EPS,
+  isVertical,
+} from "./constants";
 import { panelCatalog } from "../data";
 
 const productById = (id: string) => panelCatalog.find((p) => p.id === id);
@@ -90,7 +96,7 @@ export function panelizeSurface(
           widthFt,
           areaFt2,
           spanFt: lengthFt,
-          spanOK: !spanChecked || lengthFt <= maxSpan + OFFCUT_EPS,
+          spanOK: !spanChecked || lengthFt <= maxSpan + SPAN_EPS,
           offcut: lengthFt < L - OFFCUT_EPS || widthFt < W - OFFCUT_EPS,
         });
         index++;
@@ -104,5 +110,17 @@ export function panelizeAll(
   surfaces: PanelizableSurface[],
   opts: LayoutOptions,
 ): Panel[] {
-  return surfaces.flatMap((s) => panelizeSurface(s, opts));
+  // Isolate per surface. polygon-clipping throws "Unable to complete output
+  // ring" on some rotations of some regions, and without this one bad surface
+  // takes the whole layout down and the UI reports zero panels across the
+  // board, which reads as "nothing works" rather than "one surface failed".
+  const out: Panel[] = [];
+  for (const s of surfaces) {
+    try {
+      out.push(...panelizeSurface(s, opts));
+    } catch (err) {
+      console.warn(`[panelize] surface ${s.id} (${s.klass}) failed to tile`, err);
+    }
+  }
+  return out;
 }

@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { panelizeSurface } from "./panelize";
 import type { LayoutOptions, PanelizableSurface, Polygon2D, Vec2 } from "./types";
 
-// sterling-300-8.14: 2337×4267mm stock -> 7.667×14.0 ft, span placeholder = length.
-const STERLING = "sterling-300-8.14";
+// sterling-tl300s14: 2336.8×4165.6mm stock -> 7.667×13.667 ft, 10 ft allowable span.
+const STERLING = "sterling-tl300s14";
 // mercer-clt-3: 47.2 ft max length but only 10.83 ft allowable span.
 const MERCER = "mercer-clt-3";
 
@@ -43,8 +43,12 @@ describe("panelizeSurface", () => {
     const panels = panelizeSurface(surface({ outer: rect(60, 20), holes: [] }), opts());
     expect(panels.some((p) => !p.offcut)).toBe(true);
     expect(panels.some((p) => p.offcut)).toBe(true);
-    // Sterling placeholder span == stock length, so nothing flags.
-    expect(panels.every((p) => p.spanOK)).toBe(true);
+    // A full TL300S14 runs 13.667 ft but 3-ply only spans 10 ft, so every
+    // full-length panel on a floor is over span. Under the old placeholder
+    // catalog, span equalled stock length and this could never fire.
+    expect(panels.filter((p) => !p.offcut).every((p) => !p.spanOK)).toBe(true);
+    // The short boundary offcuts are inside the span, so it is not blanket.
+    expect(panels.some((p) => p.spanOK)).toBe(true);
   });
 
   it("flags floor panels over the allowable span, but exempts walls", () => {

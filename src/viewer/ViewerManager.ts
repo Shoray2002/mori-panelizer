@@ -1,7 +1,11 @@
 import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 import { useStore } from "../store";
-import { extractSlabSurfaces, extractWallSurfaces } from "../panelize/surfaces";
+import {
+  extractProxySurfaces,
+  extractSlabSurfaces,
+  extractWallSurfaces,
+} from "../panelize/surfaces";
 import type { Panel, PanelizableSurface } from "../panelize/types";
 import { buildSurfaceOverlay, clearOverlay } from "../panelize/debugOverlay";
 import { panelizeAll } from "../panelize/panelize";
@@ -470,6 +474,17 @@ export class ViewerManager {
         extractWallSurfaces(ctx),
       ]);
       this.surfaces = [...slabs, ...walls];
+
+      // Nothing typed as slab/wall/roof: the file carries no element semantics
+      // (SketchUp exports everything as IfcBuildingElementProxy). Fall back to
+      // classifying the raw geometry by orientation.
+      if (!this.surfaces.length) {
+        this.surfaces = await extractProxySurfaces(ctx);
+        if (this.surfaces.length)
+          console.log(
+            `[panelize] no typed elements; classified ${this.surfaces.length} surfaces geometrically`,
+          );
+      }
       useStore.getState().set({
         panelizeStatus: "ready",
         surfaceList: this.surfaces.map((s) => ({

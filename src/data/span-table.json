@@ -1,0 +1,161 @@
+{
+  "source": "Sterling Design Manual V1 (07_2025), p.9",
+  "note": "Span is the distance between supports, not panel length. Dead loads are superimposed and exclude panel self-weight.",
+  "live_load_psf": 60,
+  "span_ft": [
+    8.0,
+    10.0,
+    12.0,
+    14.0,
+    16.0,
+    17.667
+  ],
+  "permitted_ply_by_dead_load_psf": {
+    "20": [
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ]
+    ],
+    "30": [
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ]
+    ],
+    "40": [
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ]
+    ],
+    "50": [
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        7
+      ]
+    ],
+    "60": [
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        3,
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        5,
+        7
+      ],
+      [
+        7
+      ]
+    ]
+  },
+  "max_span_ft_by_ply": {
+    "3": 10.0,
+    "5": 16.0,
+    "7": 17.667
+  },
+  "max_span_basis": "dead load 60 PSF, the conservative row; this is what maxSpan_mm uses"
+}
